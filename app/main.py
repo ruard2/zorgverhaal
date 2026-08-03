@@ -478,11 +478,43 @@ DAILY_FORM_SCHEMA = {
     "rule": "Contextuele onderwerpen zijn alleen verplicht als ze door het verhaal geraakt worden; AI mag ontbrekende onderwerpen niet verzinnen."
 }
 
+FORM_PREPARATION_INTROS = {
+    "01_client_intake": "Vertel wat de cliënt zelf wil bereiken, welke dagelijkse ondersteuning nodig is, hoe communicatie werkt, welke acute risico’s bekend zijn en wie waarvoor verantwoordelijk is.",
+    "02_consent_representation": "Leg per besluit of gegevensdeling vast wie mag beslissen, met welk doel, welke minimale gegevens nodig zijn en of toestemming of een andere grondslag geldt.",
+    "03_personal_profile": "Beschrijf wat voor deze cliënt belangrijk is, hoe de cliënt communiceert, wat wel en niet helpt en hoe een gewone goede dag of vroege spanning eruitziet.",
+    "04_care_plan_goals": "Beschrijf het doel in de woorden van de cliënt, de waarneembare beginsituatie, concrete ondersteuning, eigen regie, verantwoordelijke en evaluatiemoment.",
+    "05_daily_report": "Vertel feitelijk wat er gebeurde, wat je zelf waarnam, welke ondersteuning je bood, hoe de cliënt reageerde en of er een vervolgactie nodig is.",
+    "06_shift_handover": "Noem alleen actuele veranderingen, risico- of veiligheidsafspraken en open acties met eigenaar en deadline voor de volgende dienst.",
+    "07_goal_evaluation": "Beschrijf het geëvalueerde doel, concrete resultaten, de beleving van de cliënt en het voorgestelde vervolg; een bevoegd persoon neemt het besluit.",
+    "08_risk_safety_plan": "Beschrijf het concrete risico en de context, vroege signalen, preventie, minder ingrijpende alternatieven, acute acties en wie verantwoordelijk is.",
+    "09_internal_incident": "Leg het incident feitelijk en in tijdsvolgorde vast, inclusief gevolgen, directe veiligheidsmaatregelen, betrokken informatie en concrete verbeteractie.",
+    "10_wkkgz_triage": "Vul dit alleen in voor menselijke Wkkgz-beoordeling: beschrijf incidentreferentie, mogelijke categorie, schadelijk gevolg, relatie met zorgkwaliteit en het bevoegde besluit.",
+    "11_wzd_resistance": "Beschrijf concreet verzet, de zorg die aan de orde was, mogelijk ernstig nadeel, oorzaken, de wens van de cliënt en vrijwillige minder ingrijpende alternatieven.",
+    "12_medication_deviation": "Noem medicijn en voorschrift, wat feitelijk is gegeven, gemist of geweigerd, klachten of observaties, letterlijk professioneel advies en uitgevoerde acties met tijden.",
+    "13_acute_crisis": "Beschrijf wat plotseling veranderde, het verschil met normaal, objectieve observaties, direct gevaar, gebelde hulp en het effect van de uitgevoerde acties.",
+    "14_missing_wandering": "Leg laatst-gezien-informatie, signalement en individueel risico vast, gevolgd door zoekacties en contacten in tijdsvolgorde en de toestand bij terugvinden.",
+    "15_meldcode": "Beschrijf per meldcodestap concrete signalen, overleg, gesprek, risicoweging en het menselijke besluit; scheid feiten steeds van interpretaties.",
+    "16_complaint_feedback": "Leg het signaal in de woorden van de klager vast, de gewenste oplossing, onafhankelijke behandeling, termijnen, uitkomst en verbeteractie.",
+    "17_end_of_care": "Beschrijf reden en datum van beëindiging, reactie van de cliënt, open risico’s, noodzakelijke overdracht, grondslag en acties voor veilige dossierafsluiting.",
+}
+
+APP_MANAGED_FORM_FIELDS = {"client_id", "client_reference", "client_name", "event_datetime", "datetime", "date", "time", "author", "employee", "caregiver", "location", "shift", "service", "to_shift", "recipient_shift", "handover_to", "time_spent", "care_minutes", "review_confirmed", "human_confirmation"}
+
+
+def form_preparation(form_type: str, schema: dict) -> dict:
+    groups = []
+    for section in schema.get("sections", []):
+        fields = [field for field in section.get("fields", []) if field.get("id") not in APP_MANAGED_FORM_FIELDS]
+        if fields:
+            groups.append({"title": section.get("title", "Onderwerpen"), "required": [field.get("label", field.get("id", "")) for field in fields if field.get("required")], "optional": [field.get("label", field.get("id", "")) for field in fields if not field.get("required")]})
+    field_count = sum(len(group["required"]) + len(group["optional"]) for group in groups)
+    return {"intro": FORM_PREPARATION_INTROS.get(form_type, schema.get("purpose", "Vertel wat voor dit formulier feitelijk nodig is.")), "instruction": "Beantwoord deze punten of vertel vrij in je eigen woorden; je hoeft de volgorde niet aan te houden en vult alleen in wat je weet.", "complexity": "simple" if field_count <= 6 else "detailed", "groups": groups}
+
 
 def form_payload(f: FormTemplate) -> dict:
     schema = decrypt_json(f.schema_enc)
     purpose = schema.get("purpose", "") if isinstance(schema, dict) else ""
-    return {"id": f.id, "title": f.title, "form_type": f.form_type, "version": f.version, "cadence": f.cadence, "purpose": purpose, "scope": "organization" if f.organization_id else "platform", "schema": schema}
+    return {"id": f.id, "title": f.title, "form_type": f.form_type, "version": f.version, "cadence": f.cadence, "purpose": purpose, "scope": "organization" if f.organization_id else "platform", "schema": schema, "preparation": form_preparation(f.form_type, schema if isinstance(schema, dict) else {})}
 
 
 @app.get("/api/forms")

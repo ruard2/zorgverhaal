@@ -182,3 +182,29 @@ def test_targeted_session_sends_only_the_employee_selected_form():
     assert "[compact_form(target_form)]" in run_source
     assert "form_catalog = [] if target_form" in run_source
     assert '"kind": "target_form"' in start_source
+
+
+def test_every_library_form_has_specific_non_ai_preparation():
+    import json
+    from pathlib import Path
+    from app.main import APP_MANAGED_FORM_FIELDS, FORM_PREPARATION_INTROS, form_preparation
+
+    forms = json.loads(Path("app/demo_assets/forms_bundle.json").read_text(encoding="utf-8"))["forms"]
+    assert len(forms) == 17
+    assert {form["id"] for form in forms} == set(FORM_PREPARATION_INTROS)
+    for form in forms:
+        preparation = form_preparation(form["id"], form)
+        assert preparation["intro"]
+        assert preparation["groups"]
+        exposed_labels = [label for group in preparation["groups"] for label in group["required"] + group["optional"]]
+        managed_labels = [field.get("label") for section in form.get("sections", []) for field in section.get("fields", []) if field.get("id") in APP_MANAGED_FORM_FIELDS]
+        assert not set(exposed_labels) & set(managed_labels)
+
+
+def test_targeted_form_page_renders_simple_or_detailed_preparation_without_ai():
+    from pathlib import Path
+
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "Wat moet je vertellen?" in frontend
+    assert "Bekijk alle onderwerpen" in frontend
+    assert "form.preparation" in frontend
