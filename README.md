@@ -1,6 +1,6 @@
 # ZorgVerhaal AI — Railway demo v2
 
-Mobiele rapportage-assistent voor kleinschalige Nederlandse gehandicapten- en ouderenzorg. De app gebruikt echte OpenAI-aanroepen om per beurt één contextuele vervolgvraag te kiezen. Er is geen vaste vragenlijst: het model beoordeelt bronverhaal, eerdere antwoorden, cliëntcontext, actieve zorgdoelen en juridische/veiligheidskaders opnieuw.
+Mobiele rapportage-assistent voor kleinschalige Nederlandse gehandicapten- en ouderenzorg. Applicatieregels handelen metadata, diensten, formulierrouting en validatie af; OpenAI wordt alleen gebruikt voor taalbegrip, feitelijke extractie, relevante verheldering en concepttekst. Ontbrekende vragen worden per ronde gebundeld.
 
 ## Drie dashboards
 
@@ -13,7 +13,11 @@ Een organisatiebeheerder kan zonder apart account de medewerkersdemo openen. All
 ## Wat deze versie doet
 
 - Vrij verhaal typen of via browser-spraakherkenning dicteren.
-- Dynamisch doorvragen totdat de AI voldoende relevante informatie ziet.
+- Maximaal vier gebundelde vragen per ronde, zodat meestal één aanvullende AI-call volstaat.
+- GPT-5.6 Terra met lage reasoning voor de dagelijkse route; Sol alleen voor deterministisch herkende acute/noodsituaties.
+- Relevante incident-, medicatie-, Wzd- en crisisformulieren worden direct in dezelfde call als concept ingevuld.
+- Harde API-timeout zonder verborgen automatische retry; invoer blijft bij een fout behouden.
+- Auditlog met modelroute, latency, tokengebruik, cachegebruik en OpenAI response-ID.
 - Acute risico's vóór administratieve volledigheid behandelen.
 - Mogelijke signalen tonen voor Wkkgz, Wzd, WGBO, AVG/Wabvpz en meldcode.
 - Nooit zelf een melding, diagnose, Wzd-besluit of behandelbesluit uitvoeren.
@@ -23,11 +27,13 @@ Een organisatiebeheerder kan zonder apart account de medewerkersdemo openen. All
 - `store=False` bij OpenAI-responses.
 - Uitnodigingslinks verlopen, zijn intrekbaar en hebben een gebruikslimiet.
 - Documentuploads (PDF, DOCX, TXT of JSON) verschijnen als signaal in de privé-admin-inbox.
+- Organisatiebeheerders kunnen een upload eenmalig met Sol omzetten naar een controleerbaar formulierconcept. De app controleert letterlijke bronfragmenten, labels en opties en activeert pas na menselijke vergelijking.
+- Het medewerkersdashboard toont per cliënt of alle actieve dagelijkse formulieren vandaag zijn opgeslagen.
 - Fictieve cliënten kunnen worden gearchiveerd; demo-inhoud kan gecontroleerd worden gereset.
 
 ## Basisformulier dagelijkse zorg
 
-Het organisatieformulier wordt als context aan de AI meegegeven, niet als vaste vragenlijst. De demo dekt waar relevant: welzijn, slaap, ADL, eten/drinken, toiletgang, mobiliteit, medicatie-afwijkingen, gedrag, communicatie, activiteiten, cliëntperspectief, begeleiding en effect, zorgdoelen, risico/incident/verzet, overdracht, tijdregistratie en menselijke bevestiging. De AI kiest zelf welke ontbrekende informatie één voor één moet worden uitgevraagd.
+Het organisatieformulier wordt als context aan de AI meegegeven, niet als vaste vragenlijst. De demo dekt waar relevant: welzijn, slaap, ADL, eten/drinken, toiletgang, mobiliteit, medicatie-afwijkingen, gedrag, communicatie, activiteiten, cliëntperspectief, begeleiding en effect, zorgdoelen, risico/incident/verzet, overdracht, tijdregistratie en menselijke bevestiging. De AI retourneert alle werkelijk noodzakelijke ontbrekende informatie tegelijk.
 
 Formele verplichte velden worden door applicatieregels afgedwongen. AI-tekst, doelkoppelingen, incidentwaarschuwingen en acties blijven voorstellen totdat een medewerker ze expliciet controleert.
 
@@ -43,6 +49,8 @@ Formele verplichte velden worden door applicatieregels afgedwongen. AI-tekst, do
 6. Vul `OPENAI_API_KEY`, `BOOTSTRAP_ADMIN_EMAIL` en een uniek lang `BOOTSTRAP_ADMIN_PASSWORD` in.
 7. Deploy. Healthcheck: `/health`.
 
+Voor de huidige architectuur heeft de webservice geen apart Railway Volume nodig: uploads, importconcepten, formulieren en rapportages worden versleuteld in PostgreSQL opgeslagen; tijdelijke PDF/DOCX-extractie gebeurt in geheugen. Gebruik bij grote productievolumes liever een Railway Storage Bucket/S3-opslag voor originele bestanden dan het databaseschema met grote blobs te laten meegroeien.
+
 Gebruik voor een bestaande database later formele Alembic-migraties. Deze demoversie initialiseert een nieuwe Railway-database automatisch en is bedoeld voor een schone eerste installatie.
 
 ## Lokaal
@@ -56,6 +64,16 @@ uvicorn app.main:app --reload
 ```
 
 Open `http://localhost:8000`.
+
+## AI-evaluaties
+
+De fictieve evaluatieset controleert normale diensten, dunne observaties, begeleiding, medicatie, valincidenten, Wzd-verzet, acute benauwdheid en informatie van horen-zeggen. Met een tijdelijke `OPENAI_API_KEY` in de omgeving:
+
+```bash
+python scripts/eval_ai.py
+```
+
+De uitvoer bevat per scenario model, route, latency, tokens, risico, vragen, formulierselectie en pass/fail. Wijzig model, prompt of formulierrouting alleen als deze set en de gewone tests blijven slagen.
 
 ## Voor echte cliëntgegevens
 

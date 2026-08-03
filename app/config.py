@@ -6,7 +6,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./zorgverhaal.db"
     openai_api_key: str = ""
-    openai_model: str = "gpt-5.6-sol"
+    openai_model: str = "gpt-5.6-terra"
+    openai_complex_model: str = "gpt-5.6-sol"
+    openai_reasoning_effort: str = "low"
+    openai_timeout_seconds: float = 35.0
+    openai_max_retries: int = 0
     data_encryption_key: str = ""
     jwt_secret: str = "dev-only-change-me"
     bootstrap_admin_email: str = "admin@example.nl"

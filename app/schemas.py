@@ -43,6 +43,15 @@ class FormDraft(BaseModel):
     fields: list[FilledField] = Field(default_factory=list)
 
 
+class ClarificationQuestion(BaseModel):
+    id: str
+    field_ids: list[str] = Field(default_factory=list)
+    question: str
+    why: str = ""
+    answer_type: str = Field(default="free_text", pattern="^(free_text|yes_no_unknown|choice)$")
+    answer_options: list[str] = Field(default_factory=list)
+
+
 class AIPlan(BaseModel):
     state: str = Field(pattern="^(ask|ready|urgent)$")
     risk_level: RiskLevel
@@ -51,6 +60,7 @@ class AIPlan(BaseModel):
     why_this_question: str | None = None
     answer_type: str = Field(pattern="^(free_text|yes_no_unknown|choice)$")
     answer_options: list[str] = Field(default_factory=list)
+    clarification_questions: list[ClarificationQuestion] = Field(default_factory=list, max_length=8)
     draft_report: str
     missing_information: list[str] = Field(default_factory=list)
     red_flags: list[str] = Field(default_factory=list)
@@ -78,8 +88,13 @@ class StartSessionIn(BaseModel):
     narrative: str = Field(min_length=3, max_length=12000)
 
 
+class ClarificationAnswer(BaseModel):
+    question_id: str = Field(min_length=1, max_length=200)
+    value: str = Field(min_length=1, max_length=4000)
+
+
 class AnswerIn(BaseModel):
-    answer: str = Field(min_length=1, max_length=4000)
+    answers: list[ClarificationAnswer] = Field(min_length=1, max_length=8)
 
 
 class FinalFormIn(BaseModel):
@@ -131,7 +146,46 @@ class FormCadenceIn(BaseModel):
     cadence: str = Field(pattern="^(daily|incident|on_demand|disabled)$")
 
 
+class ShiftDefinition(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    starts_at: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    minimum_handover: str = Field(default="", max_length=2000)
+
+
+class ShiftSettingsIn(BaseModel):
+    shifts: list[ShiftDefinition] = Field(min_length=1, max_length=8)
+
+
 class FormSubmitIn(BaseModel):
     client_id: str | None = None
     answers: dict = Field(default_factory=dict)
+    human_review_confirmed: bool
+
+
+class ImportedFormField(BaseModel):
+    id: str = Field(min_length=1, max_length=100, pattern=r"^[a-z0-9_]+$")
+    label: str = Field(min_length=1, max_length=300)
+    type: str = Field(pattern="^(text|textarea|select|multiselect|boolean|date|datetime|number)$")
+    required: bool = False
+    options: list[str] = Field(default_factory=list, max_length=100)
+    source_quote: str = Field(min_length=1, max_length=1000)
+
+
+class ImportedFormSection(BaseModel):
+    title: str = Field(default="", max_length=300)
+    fields: list[ImportedFormField] = Field(min_length=1, max_length=100)
+
+
+class FormImportProposal(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    purpose: str = Field(default="", max_length=1000)
+    suggested_form_type: str = Field(min_length=1, max_length=100, pattern=r"^[a-z0-9_]+$")
+    suggested_cadence: str = Field(pattern="^(daily|incident|on_demand)$")
+    sections: list[ImportedFormSection] = Field(min_length=1, max_length=50)
+    uncertainties: list[str] = Field(default_factory=list, max_length=50)
+    fidelity_note: str = Field(default="", max_length=2000)
+
+
+class FormImportActivateIn(BaseModel):
+    proposal: FormImportProposal
     human_review_confirmed: bool

@@ -5,6 +5,7 @@ import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -14,12 +15,36 @@ from sqlalchemy.orm import Session
 from .ai_service import AIUnavailable, next_plan
 from .config import get_settings
 from .database import Base, SessionLocal, engine
-from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportingSession, User
-from .schemas import AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, StartSessionIn
+from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
+from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportingSession, User
+from .schemas import AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
 settings = get_settings()
+DEFAULT_SHIFTS = [
+    {"name": "Dagdienst", "starts_at": "07:00", "minimum_handover": "Bijzonderheden, afspraken en aandachtspunten voor de volgende dienst."},
+    {"name": "Avonddienst", "starts_at": "15:00", "minimum_handover": "Bijzonderheden, afspraken en aandachtspunten voor de volgende dienst."},
+    {"name": "Nachtdienst", "starts_at": "23:00", "minimum_handover": "Bijzonderheden, afspraken en aandachtspunten voor de volgende dienst."},
+]
+
+
+def organization_shifts(db: Session, organization_id: str) -> list[dict]:
+    row = db.scalar(select(OrganizationSettings).where(OrganizationSettings.organization_id == organization_id))
+    branding = decrypt_json(row.branding_enc) if row else {}
+    shifts = branding.get("shifts") if isinstance(branding, dict) else None
+    return shifts if isinstance(shifts, list) and shifts else DEFAULT_SHIFTS
+
+
+def shift_context(db: Session, organization_id: str) -> dict:
+    shifts = organization_shifts(db, organization_id)
+    now_local = datetime.now(ZoneInfo("Europe/Amsterdam"))
+    minute = now_local.hour * 60 + now_local.minute
+    ordered = sorted(shifts, key=lambda s: tuple(map(int, s["starts_at"].split(":"))))
+    current_index = max((i for i, s in enumerate(ordered) if tuple(map(int, s["starts_at"].split(":")))[0] * 60 + tuple(map(int, s["starts_at"].split(":")))[1] <= minute), default=len(ordered) - 1)
+    current = ordered[current_index]
+    following = ordered[(current_index + 1) % len(ordered)]
+    return {"current_shift": current["name"], "next_shift": following["name"], "minimum_handover": current.get("minimum_handover", ""), "configured_shifts": ordered}
 
 
 def seed() -> None:
@@ -272,6 +297,64 @@ def organization_documents(db: Session = Depends(get_db), user: User = Depends(c
     return [{"id": d.id, "file_name": decrypt_text(d.file_name_enc), "note": decrypt_text(d.note_enc), "status": d.status, "admin_note": decrypt_text(d.admin_note_enc), "uploaded_at": d.uploaded_at.isoformat()} for d in docs]
 
 
+@app.post("/api/organization/documents/{document_id}/analyze-form")
+def analyze_uploaded_form(document_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    document = db.get(DocumentUpload, document_id)
+    if not document or document.organization_id != user.organization_id:
+        raise HTTPException(404, "Document niet gevonden")
+    existing = db.scalar(select(FormImportDraft).where(FormImportDraft.document_id == document.id))
+    if existing and existing.status == "concept":
+        return {"import_id": existing.id, "proposal": decrypt_json(existing.proposal_enc), "telemetry": decrypt_json(existing.telemetry_enc)}
+    if existing:
+        raise HTTPException(409, "Dit document is al als formulier verwerkt")
+    try:
+        content = base64.b64decode(decrypt_text(document.content_enc))
+        source_text = extract_document_text(content, document.mime_type, decrypt_text(document.file_name_enc))
+        proposal, telemetry = analyze_form(source_text, user_id=user.id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except AIUnavailable as exc:
+        raise HTTPException(503, {"message": str(exc), "code": exc.code}) from exc
+    draft = FormImportDraft(organization_id=user.organization_id, document_id=document.id, created_by=user.id, source_text_enc=encrypt_text(source_text), proposal_enc=encrypt_json(proposal.model_dump(mode="json")), telemetry_enc=encrypt_json(telemetry), status="concept")
+    db.add(draft); db.flush(); document.status = "concept_ready"
+    audit(db, user, "form_import.analyzed", "form_import", draft.id, telemetry)
+    db.commit()
+    return {"import_id": draft.id, "proposal": proposal, "telemetry": telemetry}
+
+
+@app.get("/api/organization/form-imports")
+def list_form_imports(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    rows = db.scalars(select(FormImportDraft).where(FormImportDraft.organization_id == user.organization_id).order_by(FormImportDraft.created_at.desc())).all()
+    return [{"id": row.id, "document_id": row.document_id, "status": row.status, "proposal": decrypt_json(row.proposal_enc), "telemetry": decrypt_json(row.telemetry_enc), "created_at": row.created_at.isoformat()} for row in rows]
+
+
+@app.post("/api/organization/form-imports/{import_id}/activate")
+def activate_form_import(import_id: str, data: FormImportActivateIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    draft = db.get(FormImportDraft, import_id)
+    if not draft or draft.organization_id != user.organization_id:
+        raise HTTPException(404, "Formulierconcept niet gevonden")
+    if draft.status == "active":
+        raise HTTPException(409, "Dit formulier is al geactiveerd")
+    if not data.human_review_confirmed:
+        raise HTTPException(422, "Vergelijking met het originele formulier is verplicht")
+    errors = fidelity_errors(data.proposal, decrypt_text(draft.source_text_enc))
+    if errors:
+        raise HTTPException(422, {"message": "Het concept is niet identiek genoeg aan de uitgelezen bron.", "errors": errors[:20]})
+    form_type = data.proposal.suggested_form_type
+    active_forms = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == form_type, FormTemplate.status == "active")).all()
+    prior_forms = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == form_type)).all()
+    for active in active_forms: active.status = "archived"
+    template = FormTemplate(organization_id=user.organization_id, title=data.proposal.title, form_type=form_type, version=len(prior_forms) + 1, schema_enc=encrypt_json(proposal_to_schema(data.proposal)), cadence=data.proposal.suggested_cadence, status="active", created_by=user.id)
+    db.add(template); db.flush()
+    draft.proposal_enc = encrypt_json(data.proposal.model_dump(mode="json")); draft.status = "active"
+    audit(db, user, "form_import.activated", "form", template.id, {"import_id": draft.id, "form_type": form_type, "version": template.version, "cadence": template.cadence})
+    db.commit()
+    return {"ok": True, "form": form_payload(template)}
+
+
 @app.get("/api/reminders")
 def reminders(db: Session = Depends(get_db), user: User = Depends(current_user)):
     query = select(Reminder).where(Reminder.organization_id == user.organization_id, Reminder.status == "open").order_by(Reminder.due_at)
@@ -338,9 +421,33 @@ def compact_form(f: FormTemplate) -> dict:
     return {"form_type": f.form_type, "title": f.title, "cadence": f.cadence, "purpose": schema.get("purpose", ""), "safety_triggers": schema.get("safety_triggers", []), "sections": sections}
 
 
-def forms_to_fill(db: Session, organization_id: str) -> list[dict]:
-    rows = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == organization_id, FormTemplate.status == "active", FormTemplate.cadence.in_(["daily", "incident"]), FormTemplate.form_type != "daily_care").order_by(FormTemplate.cadence, FormTemplate.form_type)).all()
-    return [compact_form(f) for f in rows]
+INCIDENT_FORM_SIGNALS = {
+    "medication": ("medicatie", "medicijn", "toediening", "bijwerking"),
+    "internal_incident": ("incident", "gevallen", "gleed", "viel", "letsel", "agressie", "geweld"),
+    "wkkgz": ("calamiteit", "geweld", "ernstig letsel", "overleden"),
+    "wzd": ("verzet", "onvrijwillig", "trok haar arm terug", "trok zijn arm terug", "zei nee"),
+    "acute_crisis": ("ernstig benauwd", "bewusteloos", "reageerde nauwelijks", "suïc", "112", "crisis"),
+    "missing": ("vermist", "weggelopen", "ongeplande afwezigheid"),
+    "meldcode": ("mishandel", "huiselijk geweld", "seksueel", "veilig thuis"),
+}
+
+
+def incident_form_relevant(form_type: str, narrative: str) -> bool:
+    normalized_type = form_type.casefold()
+    text_value = narrative.casefold()
+    return any(key in normalized_type and any(signal in text_value for signal in signals) for key, signals in INCIDENT_FORM_SIGNALS.items())
+
+
+def forms_to_fill(db: Session, organization_id: str, narrative: str = "") -> list[dict]:
+    rows = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == organization_id, FormTemplate.status == "active", FormTemplate.cadence.in_(["daily", "incident"]), FormTemplate.form_type != "daily_care").order_by(FormTemplate.form_type)).all()
+    selected = []
+    for form in rows:
+        if form.cadence == "daily":
+            selected.append(form)
+            continue
+        if incident_form_relevant(form.form_type, narrative):
+            selected.append(form)
+    return [compact_form(form) for form in selected]
 
 
 def build_form_catalog(db: Session, organization_id: str) -> list[dict]:
@@ -381,6 +488,24 @@ def forms(db: Session = Depends(get_db), user: User = Depends(current_user)):
     return [form_payload(f) for f in rows]
 
 
+@app.get("/api/daily-form-status")
+def daily_form_status(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    client_query = select(Client).where(Client.organization_id == user.organization_id, Client.active.is_(True))
+    if user.role == "caregiver":
+        assigned_ids = db.scalars(select(ClientAssignment.client_id).where(ClientAssignment.user_id == user.id)).all()
+        client_query = client_query.where(Client.id.in_(assigned_ids))
+    clients = db.scalars(client_query).all()
+    daily_forms = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.status == "active", FormTemplate.cadence == "daily", FormTemplate.form_type != "daily_care")).all()
+    local_now = datetime.now(ZoneInfo("Europe/Amsterdam"))
+    start_utc = local_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    rows = db.scalars(select(FormSubmission).where(FormSubmission.organization_id == user.organization_id, FormSubmission.created_at >= start_utc)).all()
+    completed_by_client: dict[str, set[str]] = {}
+    for row in rows:
+        if row.client_id: completed_by_client.setdefault(row.client_id, set()).add(row.form_type)
+    required = [{"form_type": form.form_type, "title": form.title} for form in daily_forms]
+    return [{"client_id": client.id, "required": required, "completed_form_types": sorted(completed_by_client.get(client.id, set())), "complete": all(form.form_type in completed_by_client.get(client.id, set()) for form in daily_forms)} for client in clients]
+
+
 @app.get("/api/organization/forms")
 def organization_forms(db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_role(user, "org_admin")
@@ -398,6 +523,31 @@ def set_form_cadence(form_id: str, data: FormCadenceIn, db: Session = Depends(ge
     audit(db, user, "form.cadence_changed", "form", form.id, {"cadence": data.cadence})
     db.commit()
     return {"ok": True, "cadence": form.cadence}
+
+
+@app.get("/api/organization/shifts")
+def get_shift_settings(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return {"shifts": organization_shifts(db, user.organization_id), "active": shift_context(db, user.organization_id)}
+
+
+@app.post("/api/organization/shifts")
+def set_shift_settings(data: ShiftSettingsIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    names = [shift.name.strip().casefold() for shift in data.shifts]
+    starts = [shift.starts_at for shift in data.shifts]
+    if len(names) != len(set(names)) or len(starts) != len(set(starts)):
+        raise HTTPException(422, "Dienstnamen en starttijden moeten uniek zijn")
+    row = db.scalar(select(OrganizationSettings).where(OrganizationSettings.organization_id == user.organization_id))
+    if not row:
+        row = OrganizationSettings(organization_id=user.organization_id, care_types_enc=encrypt_json([]), branding_enc=encrypt_json({}))
+        db.add(row)
+    branding = decrypt_json(row.branding_enc)
+    branding = branding if isinstance(branding, dict) else {}
+    branding["shifts"] = [shift.model_dump() for shift in data.shifts]
+    row.branding_enc = encrypt_json(branding)
+    audit(db, user, "organization.shifts_changed", "organization", user.organization_id, {"count": len(data.shifts)})
+    db.commit()
+    return {"ok": True, "shifts": branding["shifts"]}
 
 
 def caregiver_may_access_client(db: Session, user: User, client_id: str) -> bool:
@@ -534,14 +684,18 @@ def run_ai(db: Session, row: ReportingSession, user: User):
         "author": user.email,
         "author_role": user.role,
         "location": org.name if org else "",
+        **shift_context(db, row.organization_id),
     }
     try:
-        plan = next_plan(narrative=decrypt_text(row.narrative_enc), conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=forms_to_fill(db, row.organization_id), form_catalog=build_form_catalog(db, row.organization_id), registration_context=registration_context)
+        narrative = decrypt_text(row.narrative_enc)
+        result = next_plan(narrative=narrative, conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=forms_to_fill(db, row.organization_id, narrative), form_catalog=build_form_catalog(db, row.organization_id), registration_context=registration_context, user_id=user.id)
     except AIUnavailable as exc:
-        raise HTTPException(503, str(exc)) from exc
+        db.rollback()
+        raise HTTPException(503, {"message": str(exc), "code": exc.code}) from exc
+    plan = result.plan
     row.ai_state_enc = encrypt_json(plan.model_dump(mode="json"))
     row.status = "ready" if plan.state == "ready" else "collecting"
-    db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="ai.assessed", target_type="session", target_id=row.id, details=json.dumps({"state": plan.state, "risk": plan.risk_level})))
+    db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="ai.assessed", target_type="session", target_id=row.id, details=json.dumps({"state": plan.state, "risk": plan.risk_level.value, **result.telemetry}, ensure_ascii=False)))
     db.commit()
     return plan
 
@@ -553,7 +707,7 @@ def start_session(data: StartSessionIn, db: Session = Depends(get_db), user: Use
     if user.role == "caregiver" and not db.scalar(select(ClientAssignment).where(ClientAssignment.client_id == client.id, ClientAssignment.user_id == user.id)):
         raise HTTPException(403, "Deze cliënt is niet aan jou toegewezen")
     row = ReportingSession(organization_id=user.organization_id, client_id=client.id, user_id=user.id, narrative_enc=encrypt_text(data.narrative), conversation_enc=encrypt_json([]), ai_state_enc=encrypt_json({}))
-    db.add(row); db.flush(); db.commit()
+    db.add(row); db.flush()
     plan = run_ai(db, row, user)
     return {"session_id": row.id, "plan": plan}
 
@@ -563,12 +717,15 @@ def answer(session_id: str, data: AnswerIn, db: Session = Depends(get_db), user:
     row = owned_session(db, session_id, user)
     if row.status == "finalized": raise HTTPException(409, "Rapportage is al definitief")
     plan = decrypt_json(row.ai_state_enc)
-    question = plan.get("next_question") if isinstance(plan, dict) else None
-    if not question: raise HTTPException(409, "Er staat geen vraag open")
+    questions = plan.get("clarification_questions", []) if isinstance(plan, dict) else []
+    if not questions: raise HTTPException(409, "Er staan geen vragen open")
+    open_ids = {question.get("id") for question in questions}
+    received_ids = {answer.question_id for answer in data.answers}
+    if received_ids != open_ids or len(data.answers) != len(open_ids):
+        raise HTTPException(422, "Beantwoord alle open vragen precies één keer")
     conversation = decrypt_json(row.conversation_enc)
-    conversation.append({"question": question, "answer": data.answer})
+    conversation.extend({"question_id": answer.question_id, "answer": answer.value} for answer in data.answers)
     row.conversation_enc = encrypt_json(conversation)
-    db.commit()
     return {"session_id": row.id, "plan": run_ai(db, row, user)}
 
 
@@ -583,15 +740,32 @@ def finalize(session_id: str, data: FinalizeIn, db: Session = Depends(get_db), u
         raise HTTPException(422, "Menselijke eindcontrole is verplicht")
     if plan.get("incident_review_required") and not data.incident_review_acknowledged:
         raise HTTPException(422, "Bevestig dat de incidentwaarschuwing is beoordeeld")
+    expected_form_types = {draft.get("form_type") for draft in plan.get("form_drafts", []) if draft.get("form_type")}
+    submitted_form_types = {submission.form_type for submission in data.form_submissions}
+    if not expected_form_types.issubset(submitted_form_types):
+        raise HTTPException(422, "Niet alle gecontroleerde formulieren zijn meegestuurd")
+    prepared_submissions = []
+    for submission in data.form_submissions:
+        template = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == submission.form_type, FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
+        if not template:
+            raise HTTPException(422, f"Formulier {submission.form_type} is niet meer actief")
+        answers = dict(submission.answers)
+        if "time_spent" in answers: answers["time_spent"] = data.care_minutes
+        if "care_minutes" in answers: answers["care_minutes"] = data.care_minutes
+        if "review_confirmed" in answers: answers["review_confirmed"] = True
+        if "human_confirmation" in answers: answers["human_confirmation"] = True
+        schema = decrypt_json(template.schema_enc)
+        required = {field.get("id") for section in schema.get("sections", []) for field in section.get("fields", []) if field.get("required")}
+        missing = [field_id for field_id in required if answers.get(field_id) in (None, "", [])]
+        if missing:
+            raise HTTPException(422, f"Verplichte velden ontbreken in {template.title}: {', '.join(sorted(missing))}")
+        prepared_submissions.append((template, answers))
     report = Report(organization_id=user.organization_id, client_id=row.client_id, author_id=user.id, session_id=row.id, report_text_enc=encrypt_text(data.report_text), metadata_enc=encrypt_json({"care_minutes": data.care_minutes, "goal_ids": data.selected_goal_ids, "ai_plan": plan}))
     db.add(report); db.flush(); row.status = "finalized"
     db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="report.finalized", target_type="report", target_id=report.id))
     submissions_created = 0
-    for fs in data.form_submissions:
-        tpl = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == fs.form_type, FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
-        if not tpl:
-            continue
-        sub = FormSubmission(organization_id=user.organization_id, client_id=row.client_id, form_template_id=tpl.id, form_type=tpl.form_type, form_title=tpl.title, author_id=user.id, data_enc=encrypt_json(fs.answers))
+    for tpl, final_answers in prepared_submissions:
+        sub = FormSubmission(organization_id=user.organization_id, client_id=row.client_id, form_template_id=tpl.id, form_type=tpl.form_type, form_title=tpl.title, author_id=user.id, data_enc=encrypt_json(final_answers))
         db.add(sub); db.flush()
         audit(db, user, "form.submitted", "form_submission", sub.id, {"form_type": tpl.form_type, "session": row.id})
         submissions_created += 1

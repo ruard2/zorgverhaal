@@ -171,3 +171,16 @@ class FormTemplate(Base):
     status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class FormImportDraft(Base):
+    __tablename__ = "form_import_drafts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("document_uploads.id"), unique=True, index=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    source_text_enc: Mapped[str] = mapped_column(Text)
+    proposal_enc: Mapped[str] = mapped_column(Text)
+    telemetry_enc: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(30), default="concept", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

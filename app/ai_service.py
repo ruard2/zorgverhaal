@@ -1,5 +1,12 @@
+import hashlib
 import json
+import time
+from dataclasses import dataclass
+from typing import Any
+
+import openai
 from openai import OpenAI
+
 from .config import get_settings
 from .legal_policy import LEGAL_POLICY_NL, SYSTEM_PROMPT
 from .schemas import AIPlan
@@ -9,33 +16,225 @@ settings = get_settings()
 
 
 class AIUnavailable(RuntimeError):
-    pass
+    def __init__(self, message: str, *, code: str = "unavailable"):
+        super().__init__(message)
+        self.code = code
 
 
-def next_plan(*, narrative: str, conversation: list[dict], client_context: str, goals: list[dict], form_schema: dict, fill_forms: list[dict] | None = None, form_catalog: list[dict] | None = None, registration_context: dict | None = None) -> AIPlan:
+@dataclass
+class AIResult:
+    plan: AIPlan
+    telemetry: dict[str, Any]
+
+
+COMPLEX_SIGNAL_WORDS = (
+    "medicatie", "medicatiefout", "medicatie vergeten", "medicatie gemist", "verkeerde medicatie",
+    "incident", "letsel", "gevallen", "gleed", "viel", "agressie", "geweld", "verzet", "onvrijwillig",
+    "trok haar arm terug", "trok zijn arm terug", "zei nee",
+    "vermist", "weggelopen", "suïc", "benauwd", "bewusteloos", "crisis", "calamiteit",
+    "seksueel", "mishandel", "veilig thuis", "wzd", "wkkgz",
+)
+URGENT_SIGNAL_WORDS = ("ernstig benauwd", "bewusteloos", "reageerde nauwelijks", "suïc", "112", "direct gevaar")
+
+META_FIELD_HINTS = {
+    "client": ("client_name",),
+    "cliënt": ("client_name",),
+    "datum": ("datetime",),
+    "tijd": ("datetime",),
+    "medewerker": ("author",),
+    "auteur": ("author",),
+    "functie": ("author_role",),
+    "locatie": ("location",),
+    "huidige dienst": ("current_shift",),
+    "dienst": ("current_shift",),
+    "ontvanger": ("next_shift",),
+    "volgende dienst": ("next_shift",),
+}
+
+
+def choose_model(narrative: str) -> tuple[str, str]:
+    text = narrative.casefold()
+    if any(word in text for word in URGENT_SIGNAL_WORDS):
+        return settings.openai_complex_model, "urgent_complex"
+    if any(word in text for word in COMPLEX_SIGNAL_WORDS):
+        return settings.openai_model, "complex_signal"
+    return settings.openai_model, "routine"
+
+
+def privacy_safe_identifier(user_id: str) -> str:
+    return hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:32]
+
+
+def _known_registration_value(field_id: str, label: str, context: dict) -> str | None:
+    haystack = f"{field_id} {label}".casefold()
+    normalized_id = field_id.casefold()
+    if normalized_id in {"client_id", "client_reference"}:
+        return str(context.get("client_reference") or context.get("client_name") or "")
+    if normalized_id in {"event_datetime", "datetime", "date", "time"}:
+        return str(context.get("datetime") or "")
+    if normalized_id in {"author", "employee", "caregiver"}:
+        return " · ".join(filter(None, (str(context.get("author") or ""), str(context.get("author_role") or ""))))
+    if normalized_id in {"location", "shift", "service"}:
+        return " · ".join(filter(None, (str(context.get("location") or ""), str(context.get("current_shift") or ""))))
+    if normalized_id in {"to_shift", "recipient_shift", "handover_to"}:
+        return str(context.get("next_shift") or "")
+    if normalized_id in {"time_spent", "care_minutes", "review_confirmed", "human_confirmation"}:
+        return "Wordt bij de eindcontrole ingevuld"
+    for hint, keys in META_FIELD_HINTS.items():
+        if hint in haystack:
+            for key in keys:
+                value = context.get(key)
+                if value:
+                    return str(value)
+    return None
+
+
+def _apply_explicit_routine_defaults(plan: AIPlan, narrative: str) -> None:
+    text = narrative.casefold()
+    explicit_routine = any(term in text for term in ("geen bijzonderheden", "zonder bijzonderheden")) and any(term in text for term in ("rustig", "normaal", "gebruikelijk", "volgens het normale"))
+    if not explicit_routine or plan.risk_level != "none" or plan.red_flags:
+        return
+    for draft in plan.form_drafts:
+        for field in draft.fields:
+            if field.status != "needs_input":
+                continue
+            haystack = f"{field.field_id} {field.label}".casefold()
+            if "actie" in haystack or "risico" in haystack:
+                field.value = "Geen afwijking, risico of vervolgactie gemeld."
+            elif "ondersteun" in haystack or "intervent" in haystack:
+                field.value = "Geen afwijkende ondersteuning gemeld."
+            elif "reactie" in haystack or "effect" in haystack:
+                field.value = "Geen afwijkende reactie of bijzonder effect gemeld."
+            else:
+                field.value = "Geen bijzonderheid of afwijking gemeld."
+            field.status = "filled"
+
+
+def _consolidate_questions(plan: AIPlan, maximum: int = 4) -> None:
+    if len(plan.clarification_questions) <= maximum:
+        return
+    kept = plan.clarification_questions[: maximum - 1]
+    overflow = plan.clarification_questions[maximum - 1 :]
+    combined = overflow[0]
+    combined.id = "combined_remaining"
+    combined.question = "Kun je ook deze ontbrekende punten toelichten? " + " ".join(f"{index + 1}. {question.question}" for index, question in enumerate(overflow))
+    combined.why = "Deze informatie is nodig om de resterende verplichte velden in één keer compleet te maken."
+    combined.answer_type = "free_text"
+    combined.answer_options = []
+    combined.field_ids = list(dict.fromkeys(field_id for question in overflow for field_id in question.field_ids))
+    plan.clarification_questions = kept + [combined]
+
+
+def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrative: str = "") -> AIPlan:
+    app_managed_ids: set[str] = set()
+    for draft in plan.form_drafts:
+        for field in draft.fields:
+            value = _known_registration_value(field.field_id, field.label, registration_context)
+            if value is not None:
+                app_managed_ids.add(field.field_id)
+                field.value = value
+                field.status = "filled"
+        draft.complete = all(field.status != "needs_input" for field in draft.fields)
+
+    if app_managed_ids:
+        plan.missing_information = [item for item in plan.missing_information if not any(field_id.casefold() in item.casefold() for field_id in app_managed_ids)]
+        retained_questions = []
+        for question in plan.clarification_questions:
+            had_field_ids = bool(question.field_ids)
+            question.field_ids = [field_id for field_id in question.field_ids if field_id not in app_managed_ids]
+            if had_field_ids and not question.field_ids:
+                continue
+            if not question.field_ids and any(term in question.question.casefold() for term in ("zorgmin", "menselijke bevestiging", "cliënt", "datum", "tijdstip", "welke dienst")):
+                continue
+            retained_questions.append(question)
+        plan.clarification_questions = retained_questions
+
+    _apply_explicit_routine_defaults(plan, narrative)
+    needs_input = any(field.status == "needs_input" for draft in plan.form_drafts for field in draft.fields)
+    if not needs_input and plan.state != "urgent":
+        plan.clarification_questions = []
+    _consolidate_questions(plan)
+    if not needs_input and not plan.clarification_questions and plan.state != "urgent":
+        plan.state = "ready"
+        plan.next_question = None
+        plan.why_this_question = None
+        plan.answer_options = []
+    elif plan.clarification_questions:
+        first = plan.clarification_questions[0]
+        plan.next_question = first.question
+        plan.why_this_question = first.why
+        plan.answer_type = first.answer_type
+        plan.answer_options = first.answer_options
+    elif needs_input:
+        raise AIUnavailable("De AI leverde een onvolledig concept zonder verhelderingsvragen.", code="inconsistent_output")
+    return plan
+
+
+def _usage_dict(response) -> dict[str, Any]:
+    usage = getattr(response, "usage", None)
+    if not usage:
+        return {}
+    data = usage.model_dump(mode="json") if hasattr(usage, "model_dump") else {}
+    return {
+        "input_tokens": data.get("input_tokens", 0),
+        "output_tokens": data.get("output_tokens", 0),
+        "total_tokens": data.get("total_tokens", 0),
+        "input_tokens_details": data.get("input_tokens_details", {}),
+        "output_tokens_details": data.get("output_tokens_details", {}),
+    }
+
+
+def next_plan(*, narrative: str, conversation: list[dict], client_context: str, goals: list[dict], form_schema: dict, fill_forms: list[dict] | None = None, form_catalog: list[dict] | None = None, registration_context: dict | None = None, user_id: str = "anonymous") -> AIResult:
     if not settings.openai_api_key:
-        raise AIUnavailable("OPENAI_API_KEY ontbreekt")
-    client = OpenAI(api_key=settings.openai_api_key)
+        raise AIUnavailable("AI is niet geconfigureerd", code="not_configured")
+
+    registration_context = registration_context or {}
+    model, route = choose_model(narrative)
     payload = {
         "bronverhaal": narrative,
         "eerdere_verheldering": conversation,
         "clientcontext": client_context,
         "actieve_zorgdoelen": goals,
-        "registratie_context": registration_context or {},
+        "registratie_context": registration_context,
         "organisatie_basisformulier": form_schema,
         "te_vullen_formulieren": fill_forms or [],
         "formulier_catalogus": form_catalog or [],
-        "opdracht": "Vul via form_drafts de dagelijkse verplichte formulieren en de door de situatie opgeroepen formulieren in namens de medewerker, in de eerste/directe persoon en met uitsluitend feitelijke informatie. Vul registratie-/metavelden (cliënt, datum en tijd, naam en functie medewerker, locatie/dienst) automatisch uit registratie_context; markeer die nooit als onbekend of needs_input. Doel is een kwalitatief, compleet formulier met zo min mogelijk vragen. Zet een verplicht inhoudelijk veld dat echt ontbreekt en niet af te leiden is op status 'needs_input' en stel daarover via next_question één vraag; state mag niet 'ready' zijn zolang er needs_input-velden zijn. Gebruik 'unknown' alleen als de medewerker desgevraagd aangeeft het niet te weten. Bij een routinedienst zonder bijzonderheden: vul de inhoud met het feitelijke normaalbeeld en stel geen vragen. Signaleer via suggested_forms overige relevante formulieren uit de catalogus.",
     }
-    response = client.responses.parse(
-        model=settings.openai_model,
-        store=False,
-        input=[
-            {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + LEGAL_POLICY_NL},
-            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-        ],
-        text_format=AIPlan,
-    )
+    started = time.perf_counter()
+    try:
+        with OpenAI(api_key=settings.openai_api_key, timeout=settings.openai_timeout_seconds, max_retries=settings.openai_max_retries) as client:
+            response = client.responses.parse(
+                model=model,
+                store=False,
+                reasoning={"effort": settings.openai_reasoning_effort},
+                safety_identifier=privacy_safe_identifier(user_id),
+                input=[
+                    {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + LEGAL_POLICY_NL},
+                    {"role": "user", "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":"))},
+                ],
+                text_format=AIPlan,
+            )
+    except openai.APITimeoutError as exc:
+        raise AIUnavailable("De AI deed er te lang over. Je invoer is bewaard; probeer het opnieuw.", code="timeout") from exc
+    except openai.RateLimitError as exc:
+        raise AIUnavailable("De AI is tijdelijk te druk. Probeer het over een ogenblik opnieuw.", code="rate_limit") from exc
+    except openai.AuthenticationError as exc:
+        raise AIUnavailable("De AI-configuratie is ongeldig.", code="authentication") from exc
+    except openai.APIConnectionError as exc:
+        raise AIUnavailable("De AI is tijdelijk niet bereikbaar. Je invoer is bewaard.", code="connection") from exc
+    except openai.APIStatusError as exc:
+        raise AIUnavailable("De AI kon deze rapportage tijdelijk niet verwerken.", code=f"api_{exc.status_code}") from exc
+
     if not response.output_parsed:
-        raise AIUnavailable("AI gaf geen bruikbare gestructureerde uitvoer")
-    return response.output_parsed
+        raise AIUnavailable("De AI gaf geen bruikbaar concept. Probeer het opnieuw.", code="invalid_output")
+
+    plan = apply_deterministic_fields(response.output_parsed, registration_context, narrative)
+    telemetry = {
+        "model": model,
+        "route": route,
+        "reasoning_effort": settings.openai_reasoning_effort,
+        "latency_ms": round((time.perf_counter() - started) * 1000),
+        "response_id": getattr(response, "id", None),
+        **_usage_dict(response),
+    }
+    return AIResult(plan=plan, telemetry=telemetry)
