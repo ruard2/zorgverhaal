@@ -12,7 +12,7 @@ class AIUnavailable(RuntimeError):
     pass
 
 
-def next_plan(*, narrative: str, conversation: list[dict], client_context: str, goals: list[dict], form_schema: dict) -> AIPlan:
+def next_plan(*, narrative: str, conversation: list[dict], client_context: str, goals: list[dict], form_schema: dict, form_catalog: list[dict] | None = None) -> AIPlan:
     if not settings.openai_api_key:
         raise AIUnavailable("OPENAI_API_KEY ontbreekt")
     client = OpenAI(api_key=settings.openai_api_key)
@@ -22,7 +22,8 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
         "clientcontext": client_context,
         "actieve_zorgdoelen": goals,
         "organisatie_basisformulier": form_schema,
-        "opdracht": "Beoordeel de huidige volledigheid en geef exact één volgende stap volgens het schema.",
+        "formulier_catalogus": form_catalog or [],
+        "opdracht": "Beoordeel de huidige volledigheid, geef exact één volgende stap volgens het schema, en signaleer via suggested_forms welke aanvullende formulieren uit de catalogus nodig zijn.",
     }
     response = client.responses.parse(
         model=settings.openai_model,

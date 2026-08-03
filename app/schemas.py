@@ -22,6 +22,13 @@ class GoalSuggestion(BaseModel):
     rationale: str
 
 
+class FormSuggestion(BaseModel):
+    form_type: str
+    title: str
+    reason: str
+    urgency: str = Field(default="normal", pattern="^(normal|soon|urgent)$")
+
+
 class AIPlan(BaseModel):
     state: str = Field(pattern="^(ask|ready|urgent)$")
     risk_level: RiskLevel
@@ -35,6 +42,7 @@ class AIPlan(BaseModel):
     red_flags: list[str] = Field(default_factory=list)
     legal_signals: list[LegalSignal] = Field(default_factory=list)
     goal_suggestions: list[GoalSuggestion] = Field(default_factory=list)
+    suggested_forms: list[FormSuggestion] = Field(default_factory=list)
     incident_review_required: bool = False
     human_review_note: str
 
@@ -96,3 +104,13 @@ class AssignmentIn(BaseModel):
 class DocumentStatusIn(BaseModel):
     status: str = Field(pattern="^(uploaded|reviewing|concept_ready|client_review|active)$")
     admin_note: str = Field(default="", max_length=2000)
+
+
+class FormCadenceIn(BaseModel):
+    cadence: str = Field(pattern="^(daily|incident|on_demand|disabled)$")
+
+
+class FormSubmitIn(BaseModel):
+    client_id: str | None = None
+    answers: dict = Field(default_factory=dict)
+    human_review_confirmed: bool

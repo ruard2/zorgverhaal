@@ -1,0 +1,3760 @@
+{
+  "schema_version": "1.0",
+  "package": "ZorgVerhaal fictieve formulierenbibliotheek",
+  "version": "2026.1-demo",
+  "generated": "2026-08-03",
+  "forms": [
+    {
+      "schema_version": "1.0",
+      "id": "01_client_intake",
+      "version": "2026.1-demo",
+      "title": "1. Aanmelding en intake cliënt",
+      "purpose": "Legt alleen noodzakelijke startgegevens, zorgvraag en verantwoordelijkheden vast.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "WGBO",
+        "Wkkgz",
+        "AVG/UAVG",
+        "Wlz of Wmo 2015 (afhankelijk van leveringsvorm)"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "identity",
+          "title": "Identiteit en grondslag",
+          "fields": [
+            {
+              "id": "client_name",
+              "label": "Naam cliënt",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "dob",
+              "label": "Geboortedatum",
+              "type": "date",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "bsn",
+              "label": "BSN (alleen indien wettelijk/nodig)",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "funding",
+              "label": "Financiering/indicatie",
+              "type": "text",
+              "required": false,
+              "options": [
+                "Wlz",
+                "Wmo",
+                "Zvw",
+                "PGB",
+                "Anders"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "start_date",
+              "label": "Beoogde startdatum",
+              "type": "date",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "request",
+          "title": "Zorgvraag en voorkeuren",
+          "fields": [
+            {
+              "id": "client_words",
+              "label": "Wat wil de cliënt zelf bereiken?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "support_need",
+              "label": "Ondersteuningsbehoefte in dagelijks leven",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "communication",
+              "label": "Communicatiewijze en benodigde aanpassingen",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "risks",
+              "label": "Bekende acute risico’s of allergieën",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "network",
+          "title": "Contact en verantwoordelijkheid",
+          "fields": [
+            {
+              "id": "representative",
+              "label": "Wettelijk vertegenwoordiger en grondslag",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "emergency_contact",
+              "label": "Noodcontact",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "primary_clinician",
+              "label": "Behandelaar/huisarts",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "coordinator",
+              "label": "Zorgcoördinator",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "decision",
+          "title": "Intakebesluit",
+          "fields": [
+            {
+              "id": "fit",
+              "label": "Kan organisatie veilig en verantwoord leveren?",
+              "type": "select",
+              "required": true,
+              "options": [
+                "Ja",
+                "Nee",
+                "Nog beoordelen"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "conditions",
+              "label": "Voorwaarden/ontbrekende informatie",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "decision_owner",
+              "label": "Beslisser en datum",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "02_consent_representation",
+      "version": "2026.1-demo",
+      "title": "2. Toestemming, vertegenwoordiging en gegevensdeling",
+      "purpose": "Legt per doel en ontvanger vast wie beslist en welke toestemming/grondslag geldt.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "WGBO",
+        "AVG/UAVG",
+        "Wabvpz"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "capacity",
+          "title": "Besluitvorming",
+          "fields": [
+            {
+              "id": "decision_topic",
+              "label": "Besluit waarop beoordeling ziet",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "capacity_assessment",
+              "label": "Wilsbekwaamheid ter zake vastgesteld door bevoegde professional?",
+              "type": "select",
+              "required": true,
+              "options": [
+                "Ja",
+                "Nee",
+                "Niet beoordeeld"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "assessor",
+              "label": "Beoordelaar, functie, datum",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "representative_basis",
+              "label": "Vertegenwoordiger en juridische grondslag",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "sharing",
+          "title": "Gegevensdeling",
+          "fields": [
+            {
+              "id": "recipient",
+              "label": "Ontvanger/categorie",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "purpose",
+              "label": "Specifiek doel",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "data_categories",
+              "label": "Welke gegevens zijn noodzakelijk?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "legal_basis",
+              "label": "Grondslag of toestemming",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "validity",
+              "label": "Geldigheidsduur/intrekking",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "decision",
+              "label": "Akkoord/weigering",
+              "type": "select",
+              "required": true,
+              "options": [
+                "Akkoord",
+                "Weigering",
+                "Niet van toepassing"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "confirmation",
+          "title": "Bevestiging",
+          "fields": [
+            {
+              "id": "explained",
+              "label": "Begrijpelijk uitgelegd en vragen beantwoord?",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "signature",
+              "label": "Naam/handtekening cliënt of vertegenwoordiger",
+              "type": "signature",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "professional_signature",
+              "label": "Naam/handtekening medewerker",
+              "type": "signature",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "03_personal_profile",
+      "version": "2026.1-demo",
+      "title": "3. Dit ben ik – persoonlijk en communicatieprofiel",
+      "purpose": "Geeft medewerkers concrete persoonsgerichte aanwijzingen zonder onnodige diagnoses te herhalen.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "WGBO",
+        "VN-verdrag Handicap (kwaliteitsanker)"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "person",
+          "title": "Persoon en regie",
+          "fields": [
+            {
+              "id": "important",
+              "label": "Wat is belangrijk vóór en voor mij?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "strengths",
+              "label": "Talenten, zelfstandigheid en keuzes",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "preferences",
+              "label": "Dagritme, cultuur, geloof, eten, aanraking en privacy",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "communication",
+          "title": "Communicatie",
+          "fields": [
+            {
+              "id": "understanding",
+              "label": "Hoe begrijpt cliënt informatie?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "expression",
+              "label": "Hoe uit cliënt ja, nee, pijn, spanning en behoefte?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "avoid",
+              "label": "Woorden/benaderingen die niet helpen",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "works",
+              "label": "Wat helpt aantoonbaar?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "signals",
+          "title": "Signalen",
+          "fields": [
+            {
+              "id": "baseline",
+              "label": "Hoe ziet een gewone goede dag eruit?",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "early_signs",
+              "label": "Vroege signalen van spanning/ziekte/pijn",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "response",
+              "label": "Afgesproken reactie en wie bellen",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "04_care_plan_goals",
+      "version": "2026.1-demo",
+      "title": "4. Ondersteuningsplan en zorgdoelen",
+      "purpose": "Verbindt doelen met acties, voorkeuren, risico’s, evaluatie en verantwoordelijke.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "WGBO",
+        "Wlz/Wmo 2015",
+        "Wzd waar van toepassing"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "goal",
+          "title": "Doel in woorden van cliënt",
+          "fields": [
+            {
+              "id": "goal_text",
+              "label": "Gewenste uitkomst",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "why",
+              "label": "Waarom belangrijk voor cliënt?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "baseline",
+              "label": "Beginsituatie/waarneembare uitgangswaarde",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "target",
+              "label": "Hoe merken we samen dat het beter gaat?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "actions",
+          "title": "Ondersteuning",
+          "fields": [
+            {
+              "id": "actions",
+              "label": "Concrete acties: wie, wat, wanneer",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "client_choice",
+              "label": "Keuzes en eigen regie van cliënt",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "risks_balance",
+              "label": "Risico-afweging en minst ingrijpende ondersteuning",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "responsible",
+              "label": "Doeleigenaar",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "review_date",
+              "label": "Evaluatiedatum",
+              "type": "date",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "agreement",
+          "title": "Instemming",
+          "fields": [
+            {
+              "id": "client_view",
+              "label": "Reactie/instemming/verzet van cliënt",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "representative_view",
+              "label": "Reactie vertegenwoordiger",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "approval",
+              "label": "Bevoegde vaststeller en datum",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "05_daily_report",
+      "version": "2026.1-demo",
+      "title": "5. Dagelijkse rapportage – verhaalgestuurd",
+      "purpose": "Maakt van spraak of tekst een feitelijk concept en koppelt relevante observaties aan bestaande doelen.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "WGBO/dossierplicht",
+        "Wkkgz",
+        "AVG: dataminimalisatie",
+        "Wzd: verzet signaleren"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "meta",
+          "title": "Registratie",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "location",
+              "label": "Locatie/dienst",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "story",
+          "title": "Lopend verhaal",
+          "fields": [
+            {
+              "id": "raw_story",
+              "label": "Wat gebeurde er? Vertel in eigen woorden.",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "observations",
+              "label": "Waarneembare feiten",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "client_statement",
+              "label": "Letterlijke/strekking cliëntuitspraak",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "professional_interpretation",
+              "label": "Professionele duiding (apart van feiten)",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "care",
+          "title": "Zorg en resultaat",
+          "fields": [
+            {
+              "id": "support_given",
+              "label": "Geboden ondersteuning/interventie",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "client_response",
+              "label": "Reactie en effect",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "goal_links",
+              "label": "Voorgestelde zorgdoelkoppelingen",
+              "type": "multiselect",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "time_spent",
+              "label": "Bestede directe/indirecte tijd in minuten",
+              "type": "number",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "followup",
+          "title": "Vervolg",
+          "fields": [
+            {
+              "id": "action_needed",
+              "label": "Vervolgactie nodig?",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "action",
+              "label": "Actie, eigenaar en termijn",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "handover",
+              "label": "Met wie overgedragen en wanneer",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "review_confirmed",
+              "label": "Ik heb het AI-concept gecontroleerd",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [
+        {
+          "if": "geweld, letsel, acute verslechtering, vermissing, medicatiefout, suïcidegevaar of verzet genoemd",
+          "then": "toon directe veiligheidscheck en juiste vervolgroute; maak geen autonome melding"
+        },
+        {
+          "if": "actie past aantoonbaar bij actief zorgdoel",
+          "then": "stel koppeling met reden voor; medewerker bevestigt"
+        }
+      ],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "06_shift_handover",
+      "version": "2026.1-demo",
+      "title": "6. Dienstoverdracht",
+      "purpose": "Draagt alleen actuele, noodzakelijke informatie en open acties over.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "WGBO",
+        "AVG"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "meta",
+          "title": "Dienst",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "to_shift",
+              "label": "Overdracht aan",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "content",
+          "title": "Noodzakelijke overdracht",
+          "fields": [
+            {
+              "id": "changes",
+              "label": "Belangrijke veranderingen sinds vorige dienst",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "risks",
+              "label": "Actuele risico’s en veiligheidsafspraken",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "open_actions",
+              "label": "Open acties met eigenaar en deadline",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "appointments",
+              "label": "Afspraken/medicatiecontrole volgens protocol",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "received",
+              "label": "Ontvangst bevestigd door",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "07_goal_evaluation",
+      "version": "2026.1-demo",
+      "title": "7. Evaluatie zorgdoel en plan",
+      "purpose": "Evalueert resultaat met cliëntperspectief en past pas na bevoegde goedkeuring aan.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "WGBO",
+        "Wlz/Wmo 2015"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "meta",
+          "title": "Doel",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "goal_id",
+              "label": "Zorgdoel",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "period",
+              "label": "Evaluatieperiode",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "evidence",
+          "title": "Resultaat",
+          "fields": [
+            {
+              "id": "evidence",
+              "label": "Concrete waarnemingen/metingen",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "client_view",
+              "label": "Beleving en wens cliënt",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "network_view",
+              "label": "Inbreng vertegenwoordiger/netwerk",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "result",
+              "label": "Beoordeling",
+              "type": "select",
+              "required": true,
+              "options": [
+                "Behaald",
+                "Deels behaald",
+                "Niet behaald",
+                "Niet goed te beoordelen"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "decision",
+          "title": "Vervolg",
+          "fields": [
+            {
+              "id": "proposal",
+              "label": "Voorgestelde voortzetting/wijziging",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "risks",
+              "label": "Gevolgen en risico’s",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "decision",
+              "label": "Menselijk besluit en motivering",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "approver",
+              "label": "Bevoegde vaststeller en datum",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "08_risk_safety_plan",
+      "version": "2026.1-demo",
+      "title": "8. Risico-inventarisatie en veiligheidsplan",
+      "purpose": "Weegt risico’s, autonomie, preventie en escalatie per cliënt.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "Arbowet waar medewerkersrisico speelt",
+        "Wzd waar verzet/onvrijwilligheid speelt"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "risk",
+          "title": "Risico",
+          "fields": [
+            {
+              "id": "hazard",
+              "label": "Concreet risico en context",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "who",
+              "label": "Wie kan schade ondervinden?",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "likelihood",
+              "label": "Kans",
+              "type": "text",
+              "required": false,
+              "options": [
+                "Laag",
+                "Middel",
+                "Hoog"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "impact",
+              "label": "Impact",
+              "type": "text",
+              "required": false,
+              "options": [
+                "Laag",
+                "Middel",
+                "Hoog"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "signals",
+              "label": "Vroege signalen",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "controls",
+          "title": "Maatregelen",
+          "fields": [
+            {
+              "id": "prevention",
+              "label": "Preventie en positieve ondersteuning",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "least_restrictive",
+              "label": "Minder ingrijpende alternatieven",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "emergency",
+              "label": "Wat te doen bij acuut gevaar",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "owner",
+              "label": "Eigenaar",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "review",
+              "label": "Evaluatiedatum",
+              "type": "date",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "voice",
+          "title": "Perspectief",
+          "fields": [
+            {
+              "id": "client_view",
+              "label": "Wensen/bezwaar/verzet cliënt",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "representative_view",
+              "label": "Inbreng vertegenwoordiger",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "approval",
+              "label": "Bevoegde goedkeuring",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "09_internal_incident",
+      "version": "2026.1-demo",
+      "title": "9. Interne incidentmelding (VIM)",
+      "purpose": "Legt incident feitelijk vast voor directe veiligheid, analyse en leren.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "AVG",
+        "organisatie-VIM-procedure"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "event",
+          "title": "Gebeurtenis",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "location",
+              "label": "Plaats",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "persons",
+              "label": "Betrokkenen (minimaal noodzakelijk)",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "facts",
+              "label": "Feitelijke toedracht in tijdsvolgorde",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "harm",
+              "label": "Gevolg/letsel/schade",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "response",
+          "title": "Direct handelen",
+          "fields": [
+            {
+              "id": "safety",
+              "label": "Directe veiligheidsmaatregelen",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "medical",
+              "label": "Medische beoordeling/hulp en door wie",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "informed",
+              "label": "Wie intern/extern geïnformeerd en wanneer",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "evidence",
+              "label": "Veiliggestelde relevante informatie",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "learning",
+          "title": "Opvolging",
+          "fields": [
+            {
+              "id": "possible_causes",
+              "label": "Mogelijke factoren; geen schuldvaststelling",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "actions",
+              "label": "Verbeteractie, eigenaar, termijn",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "wkkgz_triage",
+              "label": "Doorzetten voor Wkkgz-triage?",
+              "type": "select",
+              "required": true,
+              "options": [
+                "Ja",
+                "Nee",
+                "Onzeker"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "reviewer",
+              "label": "Beoordelaar",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [
+        {
+          "if": "ernstige schade of overlijden én onverwachte/onbedoelde uitkomst van zorg",
+          "then": "direct Wkkgz-triage door bevoegde functionaris"
+        },
+        {
+          "if": "geweld binnen zorgrelatie",
+          "then": "direct Wkkgz-route geweld in zorgrelatie"
+        }
+      ],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "10_wkkgz_triage",
+      "version": "2026.1-demo",
+      "title": "10. Wkkgz-triage – mogelijke calamiteit of geweld",
+      "purpose": "Ondersteunt bevoegde bestuurder/kwaliteitsfunctionaris bij tijdige beoordeling; dit formulier doet geen IGJ-melding.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "Uitvoeringsbesluit Wkkgz",
+        "IGJ-meldprocedure"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "classification",
+          "title": "Voorlopige classificatie",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "source_incident",
+              "label": "Incidentreferentie",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "category",
+              "label": "Mogelijke categorie",
+              "type": "multiselect",
+              "required": true,
+              "options": [
+                "Calamiteit",
+                "Geweld in zorgrelatie",
+                "Ontslag wegens disfunctioneren",
+                "Andere melding",
+                "Geen verplichte melding"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "known_date",
+              "label": "Moment waarop mogelijk meldplichtige aard bekend werd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "test",
+          "title": "Beoordelingscriteria",
+          "fields": [
+            {
+              "id": "care_relation",
+              "label": "Verband met kwaliteit van zorg/zorgverlening",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "unexpected",
+              "label": "Onbedoeld of onverwacht? Motivering",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "serious_harm",
+              "label": "Dood of ernstig schadelijk gevolg? Motivering",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "violence",
+              "label": "Lichamelijk/geestelijk/seksueel geweld, misbruik of dwang in zorgrelatie?",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "decision",
+          "title": "Menselijk besluit",
+          "fields": [
+            {
+              "id": "decision",
+              "label": "Besluit",
+              "type": "text",
+              "required": true,
+              "options": [
+                "Direct melden",
+                "Eerst onderzoeken volgens geldende termijn/procedure",
+                "Niet meldplichtig",
+                "Advies IGJ inwinnen"
+              ],
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "rationale",
+              "label": "Motivering",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "deadline",
+              "label": "Uiterste actie-/meldtermijn",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "responsible",
+              "label": "Bestuurder/bevoegde functionaris",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "client_support",
+              "label": "Informeren/opvang cliënt, naaste en medewerkers",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [
+        {
+          "if": "acute onveiligheid",
+          "then": "eerst veiligheid en hulp; triage mag handelen niet vertragen"
+        }
+      ],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "11_wzd_resistance",
+      "version": "2026.1-demo",
+      "title": "11. Wzd-signaal: verzet en mogelijke onvrijwillige zorg",
+      "purpose": "Signaleert verzet en dwingt onderzoek naar oorzaak en vrijwillige, minst ingrijpende alternatieven af; geen autorisatieformulier.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wet zorg en dwang",
+        "Besluit zorg en dwang",
+        "Wkkgz"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "signal",
+          "title": "Signaal",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "resistance",
+              "label": "Wat deed/zei cliënt dat als verzet kan gelden?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "proposed_care",
+              "label": "Welke zorg/handeling stond aan de orde?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "serious_harm",
+              "label": "Welk ernstig nadeel wordt concreet gevreesd?",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "urgency",
+              "label": "Acuut gevaar?",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "analysis",
+          "title": "Onderzoek",
+          "fields": [
+            {
+              "id": "causes",
+              "label": "Mogelijke lichamelijke, psychische, sociale of omgevingsfactoren",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "client_view",
+              "label": "Wens en beleving cliënt",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "alternatives",
+              "label": "Vrijwillige en minder ingrijpende alternatieven geprobeerd/overwogen",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "effect",
+              "label": "Resultaat daarvan",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "route",
+          "title": "Vervolg volgens Wzd",
+          "fields": [
+            {
+              "id": "route_needed",
+              "label": "Wzd-stappenplan/bevoegde beoordeling nodig?",
+              "type": "select",
+              "required": true,
+              "options": [
+                "Ja",
+                "Nee",
+                "Onzeker"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "contacted",
+              "label": "Wie is geraadpleegd en wanneer",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "temporary_action",
+              "label": "Eventuele acute maatregel, noodzaak en duur",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "wzd_approval",
+              "label": "Besluit bevoegde zorgverantwoordelijke/Wzd-functionaris",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [
+        {
+          "if": "verzet bij zorg of beperking",
+          "then": "behandel als juridisch signaal; AI mag nooit noodzaak, proportionaliteit of toestemming vaststellen"
+        }
+      ],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "12_medication_deviation",
+      "version": "2026.1-demo",
+      "title": "12. Medicatie-afwijking of bijwerkingssignaal",
+      "purpose": "Registreert afwijking en onmiddellijke professionele opvolging zonder voorschrijfbesluit door AI.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "Geneesmiddelenwet",
+        "Wet BIG",
+        "Veilige principes medicatieketen / lokaal medicatieprotocol"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "meta",
+          "title": "Medicatiegebeurtenis",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "medication",
+              "label": "Medicijn, sterkte en vorm",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "prescribed",
+              "label": "Voorgeschreven dosis/tijd/route",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "actual",
+              "label": "Feitelijk gegeven/gemist/geweigerd",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "type",
+              "label": "Type afwijking",
+              "type": "text",
+              "required": true,
+              "options": [
+                "Vergeten",
+                "Te laat",
+                "Verkeerde dosis",
+                "Verkeerd middel",
+                "Geweigerd",
+                "Bijwerking",
+                "Voorraad",
+                "Anders"
+              ],
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "safety",
+          "title": "Veiligheid",
+          "fields": [
+            {
+              "id": "symptoms",
+              "label": "Klachten/observaties/vitale waarden",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "advice",
+              "label": "Contact voorschrijver/apotheek en letterlijk advies",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "actions",
+              "label": "Uitgevoerde acties en tijden",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "monitoring",
+              "label": "Afspraken voor observatie/overdracht",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "close",
+          "title": "Afronding",
+          "fields": [
+            {
+              "id": "incident_ref",
+              "label": "VIM-nummer",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "mar_checked",
+              "label": "Toedienregistratie gecontroleerd/gecorrigeerd volgens protocol",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "reviewer",
+              "label": "Controle door bevoegde medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [
+        {
+          "if": "mogelijk levensgevaar of ernstige reactie",
+          "then": "volg direct spoedprotocol/112; formulier is secundair"
+        }
+      ],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "13_acute_crisis",
+      "version": "2026.1-demo",
+      "title": "13. Acute verandering of crisisregistratie",
+      "purpose": "Structureert observatie, hulpvraag en overdracht bij acute verandering.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "WGBO",
+        "lokaal spoed-/crisisprotocol"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "situation",
+          "title": "Situatie",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "change",
+              "label": "Wat is plotseling veranderd?",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "baseline_diff",
+              "label": "Verschil met normaal functioneren",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "observations",
+              "label": "Objectieve observaties/vitale waarden indien bevoegd",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "danger",
+              "label": "Direct gevaar voor cliënt of anderen?",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "action",
+          "title": "Actie",
+          "fields": [
+            {
+              "id": "first_aid",
+              "label": "Directe hulp/veiligheid",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "contact",
+              "label": "Wie gebeld, tijd en advies",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "followed",
+              "label": "Uitvoering en effect",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "transfer",
+              "label": "Overdracht/verwijzing/vervoer",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "followup",
+          "title": "Vervolg",
+          "fields": [
+            {
+              "id": "monitor",
+              "label": "Observatie-afspraken",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "notify",
+              "label": "Cliënt/vertegenwoordiger geïnformeerd",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "report_refs",
+              "label": "Koppeling rapportage/incident",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [
+        {
+          "if": "direct levensgevaar",
+          "then": "bel 112 of volg spoedprotocol vóór registratie"
+        }
+      ],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "14_missing_wandering",
+      "version": "2026.1-demo",
+      "title": "14. Vermissing of ongeplande afwezigheid",
+      "purpose": "Legt tijdlijn, risicoprofiel, zoekacties en menselijke opschaling vast.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "AVG",
+        "lokaal vermissingsprotocol",
+        "Wzd indien beperkingen worden overwogen"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "signal",
+          "title": "Vermissing",
+          "fields": [
+            {
+              "id": "client_id",
+              "label": "Cliënt-ID",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "event_datetime",
+              "label": "Datum en tijd",
+              "type": "datetime",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "author",
+              "label": "Naam en functie medewerker",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "last_seen",
+              "label": "Laatst gezien: tijd, plaats, door wie",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "description",
+              "label": "Signalement/kleding/noodzakelijke gezondheidsinfo",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "risk",
+              "label": "Individueel risicoprofiel en urgentie",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "search",
+          "title": "Acties en tijdlijn",
+          "fields": [
+            {
+              "id": "search_actions",
+              "label": "Zoekacties met tijden",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "contacts",
+              "label": "Politie/naasten/leiding: wie, wanneer, welke noodzakelijke info",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "found",
+              "label": "Teruggevonden: tijd, plaats, toestand",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "after",
+          "title": "Nazorg",
+          "fields": [
+            {
+              "id": "medical_check",
+              "label": "Benodigde beoordeling/nazorg",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "incident_ref",
+              "label": "Incidentnummer",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "learning",
+              "label": "Plan- of risicoaanpassing na evaluatie",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [
+        {
+          "if": "hoog individueel risico of acuut gevaar",
+          "then": "onmiddellijk opschalen volgens protocol; AI bepaalt urgentie niet autonoom"
+        }
+      ],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "15_meldcode",
+      "version": "2026.1-demo",
+      "title": "15. Signalen en stappen Meldcode",
+      "purpose": "Documenteert een zorgvuldige, gefaseerde menselijke afweging bij vermoedens van huiselijk geweld, ouderen- of kindermishandeling.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wet verplichte meldcode",
+        "Besluit verplichte meldcode",
+        "Wmo 2015 meldrecht"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "step1",
+          "title": "Stap 1 – signalen in kaart",
+          "fields": [
+            {
+              "id": "facts",
+              "label": "Concrete signalen, bron en datum; feiten en interpretaties scheiden",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "child_check",
+              "label": "Kindcheck nodig en uitgevoerd?",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "immediate_danger",
+              "label": "Direct gevaar?",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "step2",
+          "title": "Stap 2 – overleg",
+          "fields": [
+            {
+              "id": "consultation",
+              "label": "Overleg deskundige collega/Veilig Thuis: wie, wanneer, advies",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "step3",
+          "title": "Stap 3 – gesprek",
+          "fields": [
+            {
+              "id": "conversation",
+              "label": "Gesprek met betrokkene(n), tenzij gemotiveerd onveilig/onmogelijk",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "step4",
+          "title": "Stap 4 – wegen",
+          "fields": [
+            {
+              "id": "assessment",
+              "label": "Aard, ernst en risico van geweld; gebruik organisatie-afwegingskader",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "step5",
+          "title": "Stap 5 – beslissen",
+          "fields": [
+            {
+              "id": "decision",
+              "label": "Menselijk besluit: hulp organiseren en/of melden",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "rationale",
+              "label": "Motivering, noodzakelijkheid en gedeelde informatie",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "responsible",
+              "label": "Bevoegde beslisser, datum en vervolg",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": false,
+                "may_suggest": false,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [
+        {
+          "if": "direct gevaar",
+          "then": "112/Veilig Thuis/spoedroute volgens situatie; documentatie mag hulp niet vertragen"
+        }
+      ],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "16_complaint_feedback",
+      "version": "2026.1-demo",
+      "title": "16. Klacht, signaal en verbeteractie",
+      "purpose": "Registreert laagdrempelig klacht of compliment en bewaakt onafhankelijke afhandeling.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "Wkkgz",
+        "AVG",
+        "klachtenregeling organisatie"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "receipt",
+          "title": "Ontvangst",
+          "fields": [
+            {
+              "id": "received",
+              "label": "Datum, kanaal en ontvanger",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "complainant",
+              "label": "Klager en relatie tot cliënt (of anoniem)",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "content",
+              "label": "Klacht/signaal in woorden van klager",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "desired",
+              "label": "Gewenste oplossing",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "handling",
+          "title": "Afhandeling",
+          "fields": [
+            {
+              "id": "consent_share",
+              "label": "Toestemming/noodzaak voor interne deling",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "handler",
+              "label": "Onafhankelijke behandelaar/klachtenfunctionaris",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "response_due",
+              "label": "Termijn en ontvangstbevestiging",
+              "type": "date",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "steps",
+              "label": "Onderzoek, hoor/wederhoor en communicatie",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "outcome",
+          "title": "Uitkomst",
+          "fields": [
+            {
+              "id": "outcome",
+              "label": "Uitkomst en motivering",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "improvement",
+              "label": "Verbeteractie, eigenaar en termijn",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "appeal",
+              "label": "Informatie over geschil/verdere route gegeven?",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "id": "17_end_of_care",
+      "version": "2026.1-demo",
+      "title": "17. Uitstroom, overdracht en dossierafsluiting",
+      "purpose": "Zorgt voor veilige continuïteit, minimale overdracht en beheerste archivering.",
+      "status": "FICTIEF SJABLOON – NIET GEBRUIKEN ZONDER ORGANISATIEVALIDATIE",
+      "scope": [
+        "kleinschalige_gehandicaptenzorg",
+        "dementiezorg",
+        "langdurige_zorg"
+      ],
+      "legal_and_quality_anchors": [
+        "WGBO",
+        "AVG/UAVG",
+        "Wabvpz",
+        "Wkkgz"
+      ],
+      "human_review": {
+        "required_before_save": true,
+        "required_before_external_action": true,
+        "ai_may_never_authorize_care_or_make_legal_decisions": true
+      },
+      "sections": [
+        {
+          "id": "end",
+          "title": "Beëindiging",
+          "fields": [
+            {
+              "id": "end_date",
+              "label": "Einddatum",
+              "type": "date",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "reason",
+              "label": "Reden beëindiging",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "client_view",
+              "label": "Wens/reactie cliënt en vertegenwoordiger",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "risks",
+              "label": "Open risico’s en continuïteitsbehoefte",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "transfer",
+          "title": "Overdracht",
+          "fields": [
+            {
+              "id": "recipient",
+              "label": "Nieuwe aanbieder/ontvanger",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "basis",
+              "label": "Toestemming of andere grondslag",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "data_shared",
+              "label": "Noodzakelijke gegevens daadwerkelijk gedeeld",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "receipt",
+              "label": "Ontvangst bevestigd",
+              "type": "text",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "archive",
+          "title": "Dossierbeheer",
+          "fields": [
+            {
+              "id": "open_actions",
+              "label": "Afgesloten of overgedragen acties",
+              "type": "textarea",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": false
+              }
+            },
+            {
+              "id": "retention",
+              "label": "Toepasselijke bewaartermijn en startmoment",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "access_revoked",
+              "label": "Toegangen/agenda/koppelingen beëindigd",
+              "type": "boolean",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "destruction_request",
+              "label": "Eventueel verzoek tot vernietiging en besluitroute",
+              "type": "textarea",
+              "required": false,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            },
+            {
+              "id": "approver",
+              "label": "Eindcontrole",
+              "type": "text",
+              "required": true,
+              "ai": {
+                "may_extract_from_narrative": true,
+                "may_suggest": true,
+                "human_confirmation_required": true,
+                "never_infer": true
+              }
+            }
+          ]
+        }
+      ],
+      "safety_triggers": [],
+      "completion_rules": [
+        "Verplichte formele velden zijn ingevuld.",
+        "Feiten, cliëntuitspraken en professionele duiding zijn herkenbaar gescheiden.",
+        "Maker controleert AI-voorstellen vóór vastlegging.",
+        "Acties hebben eigenaar en termijn wanneer van toepassing."
+      ],
+      "audit": {
+        "record_author": true,
+        "record_created_at": true,
+        "record_updated_at": true,
+        "record_approvals": true,
+        "immutable_history_required": true
+      }
+    }
+  ]
+}

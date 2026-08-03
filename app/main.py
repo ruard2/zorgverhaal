@@ -3,18 +3,19 @@ import hashlib
 import json
 import secrets
 from contextlib import asynccontextmanager
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from .ai_service import AIUnavailable, next_plan
 from .config import get_settings
 from .database import Base, SessionLocal, engine
-from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportingSession, User
-from .schemas import AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, StartSessionIn
+from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportingSession, User
+from .schemas import AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
@@ -35,9 +36,20 @@ def seed() -> None:
         db.commit()
 
 
+def migrate() -> None:
+    # create_all voegt geen kolcommen toe aan bestaande tabellen; deze kolom kan op een
+    # eerder aangemaakte form_templates-tabel nog ontbreken.
+    with engine.begin() as conn:
+        try:
+            conn.execute(text("ALTER TABLE form_templates ADD COLUMN cadence VARCHAR(20) DEFAULT 'on_demand'"))
+        except Exception:
+            pass  # kolom bestaat al (of DB nog leeg); create_all maakt de tabel volledig aan
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)
+    migrate()
     seed()
     yield
 
@@ -287,6 +299,44 @@ def complete_reminder(reminder_id: str, db: Session = Depends(get_db), user: Use
     row.status = "completed"; audit(db, user, "reminder.completed", "reminder", row.id); db.commit(); return {"ok": True}
 
 
+DEMO_ASSETS_DIR = Path(__file__).parent / "demo_assets"
+DEMO_DOCUMENTS = [
+    ("ZorgVerhaal_Formulierenbibliotheek.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Fictieve formulierenbibliotheek (Word) — demo, niet gebruiken zonder organisatievalidatie."),
+    ("ZorgVerhaal_Formulierenbibliotheek.pdf", "application/pdf", "Fictieve formulierenbibliotheek (PDF) — demo, niet gebruiken zonder organisatievalidatie."),
+    ("forms_bundle.json", "application/json", "Fictieve formulierenbibliotheek (JSON-bundel) — demo, niet gebruiken zonder organisatievalidatie."),
+]
+
+# Standaard-cadans per formulier: welke verschijnt dagelijks, welke bij een incident, en welke op aanvraag.
+# De werkgever (org_admin) kan dit per formulier aanpassen.
+CADENCE_DAILY = ("daily_report", "shift_handover")
+CADENCE_INCIDENT = ("incident", "wkkgz", "wzd", "medication_deviation", "acute_crisis", "missing", "meldcode")
+
+
+def default_cadence(form_id: str) -> str:
+    if any(k in form_id for k in CADENCE_DAILY):
+        return "daily"
+    if any(k in form_id for k in CADENCE_INCIDENT):
+        return "incident"
+    return "on_demand"
+
+
+def load_form_library() -> list[dict]:
+    path = DEMO_ASSETS_DIR / "forms_bundle.json"
+    if not path.exists():
+        return []
+    bundle = json.loads(path.read_text(encoding="utf-8"))
+    return bundle.get("forms", [])
+
+
+def build_form_catalog(db: Session, organization_id: str) -> list[dict]:
+    rows = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == organization_id, FormTemplate.status == "active", FormTemplate.cadence != "disabled", FormTemplate.form_type != "daily_care")).all()
+    catalog = []
+    for f in rows:
+        schema = decrypt_json(f.schema_enc)
+        catalog.append({"form_type": f.form_type, "title": f.title, "purpose": schema.get("purpose", "") if isinstance(schema, dict) else "", "cadence": f.cadence, "safety_triggers": schema.get("safety_triggers", []) if isinstance(schema, dict) else []})
+    return catalog
+
+
 DAILY_FORM_SCHEMA = {
     "intro": "Vertel vrij hoe de dienst met deze cliënt is verlopen. De AI haalt relevante onderdelen uit je verhaal en vraagt alleen door waar dat nodig is.",
     "formal_required": ["moment", "author", "client", "narrative", "care_minutes", "human_confirmation"],
@@ -304,10 +354,83 @@ DAILY_FORM_SCHEMA = {
 }
 
 
+def form_payload(f: FormTemplate) -> dict:
+    schema = decrypt_json(f.schema_enc)
+    purpose = schema.get("purpose", "") if isinstance(schema, dict) else ""
+    return {"id": f.id, "title": f.title, "form_type": f.form_type, "version": f.version, "cadence": f.cadence, "purpose": purpose, "scope": "organization" if f.organization_id else "platform", "schema": schema}
+
+
 @app.get("/api/forms")
 def forms(db: Session = Depends(get_db), user: User = Depends(current_user)):
-    rows = db.scalars(select(FormTemplate).where(((FormTemplate.organization_id == user.organization_id) | (FormTemplate.organization_id.is_(None))), FormTemplate.status == "active").order_by(FormTemplate.version.desc())).all()
-    return [{"id": f.id, "title": f.title, "form_type": f.form_type, "version": f.version, "scope": "organization" if f.organization_id else "platform", "schema": decrypt_json(f.schema_enc)} for f in rows]
+    rows = db.scalars(select(FormTemplate).where(((FormTemplate.organization_id == user.organization_id) | (FormTemplate.organization_id.is_(None))), FormTemplate.status == "active", FormTemplate.cadence != "disabled", FormTemplate.form_type != "daily_care").order_by(FormTemplate.form_type)).all()
+    return [form_payload(f) for f in rows]
+
+
+@app.get("/api/organization/forms")
+def organization_forms(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    rows = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.status == "active", FormTemplate.form_type != "daily_care").order_by(FormTemplate.form_type)).all()
+    return [form_payload(f) for f in rows]
+
+
+@app.post("/api/organization/forms/{form_id}/cadence")
+def set_form_cadence(form_id: str, data: FormCadenceIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    form = db.get(FormTemplate, form_id)
+    if not form or form.organization_id != user.organization_id:
+        raise HTTPException(404, "Formulier niet gevonden")
+    form.cadence = data.cadence
+    audit(db, user, "form.cadence_changed", "form", form.id, {"cadence": data.cadence})
+    db.commit()
+    return {"ok": True, "cadence": form.cadence}
+
+
+def caregiver_may_access_client(db: Session, user: User, client_id: str) -> bool:
+    if user.role != "caregiver":
+        return True
+    return bool(db.scalar(select(ClientAssignment).where(ClientAssignment.client_id == client_id, ClientAssignment.user_id == user.id)))
+
+
+@app.post("/api/forms/{form_id}/submit")
+def submit_form(form_id: str, data: FormSubmitIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    form = db.get(FormTemplate, form_id)
+    if not form or form.organization_id != user.organization_id or form.status != "active":
+        raise HTTPException(404, "Formulier niet gevonden")
+    if not data.human_review_confirmed:
+        raise HTTPException(422, "Menselijke eindcontrole is verplicht")
+    client_id = data.client_id or None
+    if client_id:
+        client = db.get(Client, client_id)
+        if not client or client.organization_id != user.organization_id:
+            raise HTTPException(404, "Cliënt niet gevonden")
+        if not caregiver_may_access_client(db, user, client_id):
+            raise HTTPException(403, "Deze cliënt is niet aan jou toegewezen")
+    row = FormSubmission(organization_id=user.organization_id, client_id=client_id, form_template_id=form.id, form_type=form.form_type, form_title=form.title, author_id=user.id, data_enc=encrypt_json(data.answers))
+    db.add(row); db.flush()
+    audit(db, user, "form.submitted", "form_submission", row.id, {"form_type": form.form_type, "client_id": client_id})
+    db.commit()
+    return {"ok": True, "submission_id": row.id}
+
+
+@app.get("/api/clients/{client_id}/submissions")
+def client_submissions(client_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    client = db.get(Client, client_id)
+    if not client or client.organization_id != user.organization_id:
+        raise HTTPException(404, "Cliënt niet gevonden")
+    if not caregiver_may_access_client(db, user, client_id):
+        raise HTTPException(403, "Deze cliënt is niet aan jou toegewezen")
+    rows = db.scalars(select(FormSubmission).where(FormSubmission.client_id == client_id).order_by(FormSubmission.created_at.desc())).all()
+    return [{"id": s.id, "form_title": s.form_title, "form_type": s.form_type, "created_at": s.created_at.isoformat()} for s in rows]
+
+
+@app.get("/api/submissions/{submission_id}")
+def get_submission(submission_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    row = db.get(FormSubmission, submission_id)
+    if not row or row.organization_id != user.organization_id:
+        raise HTTPException(404, "Formulier niet gevonden")
+    if row.author_id != user.id and row.client_id and not caregiver_may_access_client(db, user, row.client_id):
+        raise HTTPException(403, "Geen toegang tot dit formulier")
+    return {"id": row.id, "form_title": row.form_title, "form_type": row.form_type, "created_at": row.created_at.isoformat(), "client_id": row.client_id, "answers": decrypt_json(row.data_enc)}
 
 
 @app.post("/api/organization/seed-demo")
@@ -334,9 +457,26 @@ def seed_demo(db: Session = Depends(get_db), user: User = Depends(current_user))
     active_form = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == "daily_care", FormTemplate.status == "active"))
     if not active_form:
         prior_forms = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == "daily_care")).all()
-        db.add(FormTemplate(organization_id=user.organization_id, title="Dagelijkse zorgrapportage", form_type="daily_care", version=len(prior_forms) + 1, schema_enc=encrypt_json(DAILY_FORM_SCHEMA), status="active", created_by=user.id))
+        db.add(FormTemplate(organization_id=user.organization_id, title="Dagelijkse zorgrapportage", form_type="daily_care", version=len(prior_forms) + 1, schema_enc=encrypt_json(DAILY_FORM_SCHEMA), cadence="daily", status="active", created_by=user.id))
+    forms_created = 0
+    for form in load_form_library():
+        form_type = form.get("id")
+        if not form_type:
+            continue
+        if db.scalar(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == form_type, FormTemplate.status == "active")):
+            continue
+        db.add(FormTemplate(organization_id=user.organization_id, title=form.get("title", form_type), form_type=form_type, version=1, schema_enc=encrypt_json(form), cadence=default_cadence(form_type), status="active", created_by=user.id))
+        forms_created += 1
+    documents_created = 0
+    for file_name, mime_type, note in DEMO_DOCUMENTS:
+        path = DEMO_ASSETS_DIR / file_name
+        if not path.exists():
+            continue
+        content = path.read_bytes()
+        db.add(DocumentUpload(organization_id=user.organization_id, uploaded_by=user.id, file_name_enc=encrypt_text(file_name), mime_type=mime_type, content_enc=encrypt_text(base64.b64encode(content).decode()), note_enc=encrypt_text(note), admin_note_enc=encrypt_text("")))
+        documents_created += 1
     settings_row.demo_ready = True; audit(db, user, "demo.seeded", "organization", user.organization_id); db.commit()
-    return {"ok": True, "clients": len(clients_created)}
+    return {"ok": True, "clients": len(clients_created), "documents": documents_created, "forms": forms_created}
 
 
 @app.post("/api/clients/{client_id}/archive")
@@ -372,7 +512,7 @@ def run_ai(db: Session, row: ReportingSession, user: User):
     form = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == row.organization_id, FormTemplate.form_type == "daily_care", FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
     form_schema = decrypt_json(form.schema_enc) if form else DAILY_FORM_SCHEMA
     try:
-        plan = next_plan(narrative=decrypt_text(row.narrative_enc), conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema)
+        plan = next_plan(narrative=decrypt_text(row.narrative_enc), conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, form_catalog=build_form_catalog(db, row.organization_id))
     except AIUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
     row.ai_state_enc = encrypt_json(plan.model_dump(mode="json"))

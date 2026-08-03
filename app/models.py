@@ -145,6 +145,20 @@ class DocumentUpload(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
 
 
+class FormSubmission(Base):
+    __tablename__ = "form_submissions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    client_id: Mapped[str | None] = mapped_column(ForeignKey("clients.id"), nullable=True, index=True)
+    form_template_id: Mapped[str] = mapped_column(ForeignKey("form_templates.id"), index=True)
+    form_type: Mapped[str] = mapped_column(String(50), index=True)
+    form_title: Mapped[str] = mapped_column(String(180))
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    data_enc: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), default="submitted", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+
+
 class FormTemplate(Base):
     __tablename__ = "form_templates"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
@@ -153,6 +167,7 @@ class FormTemplate(Base):
     form_type: Mapped[str] = mapped_column(String(50), default="daily_care")
     version: Mapped[int] = mapped_column(Integer, default=1)
     schema_enc: Mapped[str] = mapped_column(Text)
+    cadence: Mapped[str] = mapped_column(String(20), default="on_demand", index=True)
     status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
