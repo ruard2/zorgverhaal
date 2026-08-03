@@ -36,6 +36,14 @@ def test_routine_and_standard_incident_use_terra_but_acute_signal_uses_sol():
     assert choose_model("Cliënt is vermist")[1] == "complex_signal"
 
 
+def test_normal_pain_medication_stays_on_the_fast_routine_route():
+    settings = get_settings()
+    model, route = choose_model("Cliënt had pijn en kreeg volgens afspraak pijnmedicatie")
+    assert model == settings.openai_model
+    assert route == "routine"
+    assert choose_model("De medicatie was vergeten")[1] == "complex_signal"
+
+
 def test_registration_fields_are_deterministic_and_not_questions():
     plan = minimal_plan(
         clarification_questions=[ClarificationQuestion(id="meta", field_ids=["client_name"], question="Welke cliënt?", why="Verplicht")],
@@ -67,6 +75,9 @@ def test_frontend_uses_structured_answers_and_readonly_preview():
     assert "JSON.stringify({answers})" in frontend
     assert "formDraftsPreview(p)" in frontend
     assert "Bekijk het huidige AI-concept" in frontend
+    assert 'api("/api/transcribe"' in frontend
+    assert "MediaRecorder" in frontend
+    assert "SpeechRecognition" not in frontend
 
 
 def test_only_relevant_incident_forms_are_preselected():
@@ -75,3 +86,4 @@ def test_only_relevant_incident_forms_are_preselected():
     assert incident_form_relevant("12_medication_deviation", "De medicatie lag nog in het bakje")
     assert incident_form_relevant("11_wzd_resistance", "Cliënt zei nee en trok haar arm terug")
     assert not incident_form_relevant("12_medication_deviation", "De dienst verliep rustig")
+    assert not incident_form_relevant("12_medication_deviation", "Cliënt kreeg volgens afspraak pijnmedicatie")

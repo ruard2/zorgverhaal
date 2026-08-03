@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
-from .ai_service import AIUnavailable, next_plan
+from .ai_service import AIUnavailable, next_plan, transcribe_audio
 from .config import get_settings
 from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
@@ -422,7 +422,7 @@ def compact_form(f: FormTemplate) -> dict:
 
 
 INCIDENT_FORM_SIGNALS = {
-    "medication": ("medicatie", "medicijn", "toediening", "bijwerking"),
+    "medication": ("medicatiefout", "medicatie vergeten", "medicatie was vergeten", "medicatie gemist", "verkeerde medicatie", "medicatie te laat", "medicatie niet ingenomen", "niet ingenomen", "nog in het bakje", "bijwerking", "afwijking"),
     "internal_incident": ("incident", "gevallen", "gleed", "viel", "letsel", "agressie", "geweld"),
     "wkkgz": ("calamiteit", "geweld", "ernstig letsel", "overleden"),
     "wzd": ("verzet", "onvrijwillig", "trok haar arm terug", "trok zijn arm terug", "zei nee"),
@@ -710,6 +710,24 @@ def start_session(data: StartSessionIn, db: Session = Depends(get_db), user: Use
     db.add(row); db.flush()
     plan = run_ai(db, row, user)
     return {"session_id": row.id, "plan": plan}
+
+
+@app.post("/api/transcribe")
+async def transcribe(file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    content = await file.read()
+    if not content:
+        raise HTTPException(422, "De opname is leeg")
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(413, "De opname is te groot; spreek maximaal enkele minuten in")
+    if not (file.content_type or "").startswith("audio/"):
+        raise HTTPException(415, "Ongeldig audioformaat")
+    try:
+        text_value, telemetry = transcribe_audio(content, file_name=file.filename or "spraak.webm", mime_type=file.content_type or "audio/webm", user_id=user.id)
+    except AIUnavailable as exc:
+        raise HTTPException(503, {"message": str(exc), "code": exc.code}) from exc
+    audit(db, user, "audio.transcribed", "user", user.id, telemetry)
+    db.commit()
+    return {"text": text_value}
 
 
 @app.post("/api/sessions/{session_id}/answer")

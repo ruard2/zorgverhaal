@@ -28,7 +28,7 @@ class AIResult:
 
 
 COMPLEX_SIGNAL_WORDS = (
-    "medicatie", "medicatiefout", "medicatie vergeten", "medicatie gemist", "verkeerde medicatie",
+    "medicatiefout", "medicatie vergeten", "medicatie was vergeten", "medicatie gemist", "verkeerde medicatie", "medicatie te laat", "medicatie niet ingenomen", "bijwerking",
     "incident", "letsel", "gevallen", "gleed", "viel", "agressie", "geweld", "verzet", "onvrijwillig",
     "trok haar arm terug", "trok zijn arm terug", "zei nee",
     "vermist", "weggelopen", "suïc", "benauwd", "bewusteloos", "crisis", "calamiteit",
@@ -63,6 +63,28 @@ def choose_model(narrative: str) -> tuple[str, str]:
 
 def privacy_safe_identifier(user_id: str) -> str:
     return hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:32]
+
+
+def transcribe_audio(content: bytes, *, file_name: str, mime_type: str, user_id: str) -> tuple[str, dict[str, Any]]:
+    if not settings.openai_api_key:
+        raise AIUnavailable("Spraakherkenning is niet geconfigureerd", code="not_configured")
+    started = time.perf_counter()
+    try:
+        with OpenAI(api_key=settings.openai_api_key, timeout=45.0, max_retries=0) as client:
+            transcript = client.audio.transcriptions.create(
+                model=settings.openai_transcription_model,
+                file=(file_name or "spraak.webm", content, mime_type or "audio/webm"),
+                language="nl",
+                prompt="Nederlandse zorgrapportage. Behoud cliëntnamen, medicatienamen en letterlijke observaties zo nauwkeurig mogelijk.",
+            )
+    except openai.APITimeoutError as exc:
+        raise AIUnavailable("Het verwerken van de opname duurde te lang. Probeer opnieuw of typ de tekst.", code="transcription_timeout") from exc
+    except openai.APIError as exc:
+        raise AIUnavailable("De opname kon tijdelijk niet worden verwerkt.", code="transcription_api") from exc
+    text_value = getattr(transcript, "text", "").strip()
+    if not text_value:
+        raise AIUnavailable("Er werd geen verstaanbare spraak gevonden.", code="empty_transcript")
+    return text_value, {"model": settings.openai_transcription_model, "latency_ms": round((time.perf_counter() - started) * 1000), "user_hash": privacy_safe_identifier(user_id)}
 
 
 def _known_registration_value(field_id: str, label: str, context: dict) -> str | None:

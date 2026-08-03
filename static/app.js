@@ -152,18 +152,31 @@ function chooseClient(){if(state.clients.length===1){state.client=state.clients[
 function narrativePage(){shell(`<section class="pad"><button class="back" id="back">‹</button><p class="eyebrow">${esc(state.client.display_name)}</p><h1>Hoe is de zorg verlopen?</h1><p class="lead">Spreek of typ gewoon vrij. De AI vult de formulieren in en vraagt alléén door als er echt iets verplichts ontbreekt.</p><button class="voice" id="voice">● Inspreken</button><textarea id="narrative" class="big" placeholder="Bijvoorbeeld: Henk was vanmorgen onrustig en wilde niet mee…"></textarea><div class="notice">Rustige dienst? Zeg kort dat het een normale dag was — de AI maakt er een compleet formulier van zonder onnodige vragen.</div><button id="analyse">Formulieren invullen met AI</button><details><summary>Wat vult de AI in?</summary><p>De dagelijkse verplichte formulieren, plus formulieren die de situatie oproept (bijv. medicatie-afwijking of incident). Alleen waar relevant; niets wordt verzonnen.</p></details></section>`,"Dagrapportage");document.querySelector("#back").onclick=()=>{stopVoice();workerDashboard();};document.querySelector("#voice").onclick=()=>speech(document.querySelector("#narrative"),document.querySelector("#voice"));document.querySelector("#analyse").onclick=async e=>{stopVoice();const narrative=document.querySelector("#narrative").value.trim();if(narrative.length<3)return showError(new Error("Vertel eerst wat er gebeurde"));busy(e.target,"AI beoordeelt…");try{const r=await api("/api/sessions",{method:"POST",body:JSON.stringify({client_id:state.client.id,narrative})});state.session=r.session_id;state.plan=r.plan;renderPlan()}catch(x){showError(x);e.target.disabled=false;e.target.textContent=e.target.dataset.old}}}
 let voiceRec=null;
 function stopVoice(){if(voiceRec)voiceRec.userStop()}
-function speech(el,btn){
-  const R=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!R)return showError(new Error("Spraakherkenning wordt niet ondersteund in deze browser"));
+async function speech(el,btn){
   if(voiceRec){voiceRec.userStop();return;}
-  const r=new R();r.lang="nl-NL";r.continuous=true;r.interimResults=true;
-  const base=el.value?el.value.replace(/\s+$/,"")+" ":"";let finalTxt="";let stopped=false;
-  const ui=on=>{if(btn){btn.classList.toggle("recording",on);btn.textContent=on?"■ Stoppen met inspreken":"● Inspreken";}};
-  r.onresult=e=>{let interim="";for(let i=e.resultIndex;i<e.results.length;i++){const res=e.results[i];if(res.isFinal)finalTxt+=res[0].transcript+" ";else interim+=res[0].transcript;}el.value=base+finalTxt+interim;};
-  r.onerror=ev=>{if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){stopped=true;showError(new Error("Geen toegang tot de microfoon"));}else if(ev.error!=="no-speech"&&ev.error!=="aborted"){showError(new Error("Spraakherkenning: "+ev.error));}};
-  r.onend=()=>{if(!stopped){try{r.start();return;}catch(e){}}voiceRec=null;ui(false);el.value=(base+finalTxt).replace(/\s+$/,"");};
-  r.userStop=()=>{stopped=true;try{r.stop();}catch(e){}};
-  voiceRec=r;try{r.start();ui(true);}catch(e){voiceRec=null;showError(new Error("Inspreken kon niet starten"));}
+  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)return showError(new Error("Audio-opname wordt niet ondersteund in deze browser"));
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    const preferred=["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(type=>MediaRecorder.isTypeSupported(type));
+    const recorder=new MediaRecorder(stream,preferred?{mimeType:preferred}:undefined);
+    const chunks=[];let stopped=false;let timer;
+    const reset=()=>{clearTimeout(timer);stream.getTracks().forEach(track=>track.stop());voiceRec=null;btn.classList.remove("recording");btn.disabled=false;btn.textContent="● Inspreken";};
+    recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};
+    recorder.onerror=()=>{reset();showError(new Error("De audio-opname is mislukt"));};
+    recorder.onstop=async()=>{
+      if(!chunks.length){reset();return showError(new Error("Er is geen audio opgenomen"));}
+      btn.disabled=true;btn.textContent="Spraak nauwkeurig omzetten…";
+      const type=recorder.mimeType||preferred||"audio/webm";
+      const extension=type.includes("mp4")?"m4a":"webm";
+      const body=new FormData();body.append("file",new Blob(chunks,{type}),`spraak.${extension}`);
+      try{const result=await api("/api/transcribe",{method:"POST",body});const base=el.value.trim();el.value=[base,result.text].filter(Boolean).join(base?" ":"");el.focus();}
+      catch(error){showError(error);}
+      finally{reset();}
+    };
+    voiceRec={userStop:()=>{if(stopped)return;stopped=true;if(recorder.state==="recording")recorder.stop();}};
+    recorder.start(1000);timer=setTimeout(()=>voiceRec?.userStop(),5*60*1000);
+    btn.classList.add("recording");btn.textContent="■ Stoppen en tekst maken";
+  }catch(error){voiceRec=null;showError(new Error(error.name==="NotAllowedError"?"Geen toegang tot de microfoon":"Inspreken kon niet starten"));}
 }
 function signals(p){return `${p.risk_level!=="none"?`<div class="alert ${p.risk_level}"><strong>${p.risk_level==="urgent"?"⚠ Direct aandacht nodig":"⚑ Menselijke beoordeling"}</strong><p>${esc(p.short_safety_message||"Volg het organisatieprotocol.")}</p></div>`:""}${(p.legal_signals||[]).map(s=>`<details><summary>${esc(s.title)}</summary><p>${esc(s.rationale)}</p><small>${esc(s.source)} · ${esc(s.human_action)}</small></details>`).join("")}`}
 function fillingHeader(p){if(!p.form_drafts?.length)return "";const missing=p.form_drafts.reduce((n,fd)=>n+(fd.fields||[]).filter(f=>f.status==="needs_input").length,0);return `<div class="filling"><b>▤ Bezig met invullen</b><small>${p.form_drafts.map(fd=>esc(fd.title)).join(" · ")}</small>${missing?`<small class="muted">${missing} verplicht veld(en) nog nodig</small>`:`<small class="muted">Verplichte velden compleet</small>`}</div>`}
