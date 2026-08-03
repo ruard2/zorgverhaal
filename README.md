@@ -14,7 +14,9 @@ Een organisatiebeheerder kan zonder apart account de medewerkersdemo openen. All
 
 - Vrij verhaal typen of via browser-spraakherkenning dicteren.
 - Maximaal vier gebundelde vragen per ronde, zodat meestal één aanvullende AI-call volstaat.
-- GPT-5.6 Terra met lage reasoning voor de dagelijkse route; Sol alleen voor deterministisch herkende acute/noodsituaties.
+- GPT-5.6 Luna zonder reasoning voor snelle dagelijkse extractie; Sol wordt alleen gebruikt voor eenmalige formulierimport.
+- Vaste registratiegegevens en formulierselectie worden door de applicatie afgehandeld; alleen resterende vrije tekst gaat naar de rapportage-AI.
+- De uitgebreide veiligheids-/juridische prompt wordt alleen bij een concreet veiligheidssignaal meegestuurd. API-responses worden niet bij OpenAI opgeslagen (`store=false`).
 - Relevante incident-, medicatie-, Wzd- en crisisformulieren worden direct in dezelfde call als concept ingevuld.
 - Harde API-timeout zonder verborgen automatische retry; invoer blijft bij een fout behouden.
 - Auditlog met modelroute, latency, tokengebruik, cachegebruik en OpenAI response-ID.

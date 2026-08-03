@@ -7,9 +7,11 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./zorgverhaal.db"
     openai_api_key: str = ""
     openai_model: str = "gpt-5.6-terra"
+    openai_report_model: str = "gpt-5.6-luna"
     openai_complex_model: str = "gpt-5.6-sol"
     openai_transcription_model: str = "gpt-4o-mini-transcribe"
     openai_reasoning_effort: str = "low"
+    openai_report_reasoning_effort: str = "none"
     openai_timeout_seconds: float = 35.0
     openai_max_retries: int = 0
     data_encryption_key: str = ""

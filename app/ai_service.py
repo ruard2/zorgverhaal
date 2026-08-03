@@ -55,7 +55,12 @@ META_FIELD_HINTS = {
 def choose_model(narrative: str) -> tuple[str, str]:
     # Rapportages blijven op het lichte model. De AI mag risico's en extra
     # formulieren signaleren, maar schaalt zichzelf niet op naar Sol.
-    return settings.openai_model, "reporting"
+    return settings.openai_report_model, "reporting"
+
+
+def needs_extended_safety_policy(narrative: str) -> bool:
+    text = narrative.casefold()
+    return any(word in text for word in COMPLEX_SIGNAL_WORDS + URGENT_SIGNAL_WORDS)
 
 
 def privacy_safe_identifier(user_id: str) -> str:
@@ -211,24 +216,34 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
     model, route = choose_model(narrative)
     payload = {
         "bronverhaal": narrative,
-        "eerdere_verheldering": conversation,
-        "clientcontext": client_context,
-        "actieve_zorgdoelen": goals,
         "registratie_context": registration_context,
         "organisatie_basisformulier": form_schema,
-        "te_vullen_formulieren": fill_forms or [],
-        "formulier_catalogus": form_catalog or [],
     }
+    if conversation:
+        payload["eerdere_verheldering"] = conversation
+    if client_context:
+        payload["clientcontext"] = client_context
+    if goals:
+        payload["actieve_zorgdoelen"] = goals
+    if fill_forms:
+        payload["te_vullen_formulieren"] = fill_forms
+    if form_catalog:
+        payload["formulier_catalogus"] = form_catalog
+    system_prompt = SYSTEM_PROMPT
+    if needs_extended_safety_policy(narrative):
+        system_prompt += "\n\n" + LEGAL_POLICY_NL
     started = time.perf_counter()
     try:
         with OpenAI(api_key=settings.openai_api_key, timeout=settings.openai_timeout_seconds, max_retries=settings.openai_max_retries) as client:
             response = client.responses.parse(
                 model=model,
                 store=False,
-                reasoning={"effort": settings.openai_reasoning_effort},
+                reasoning={"effort": settings.openai_report_reasoning_effort},
+                max_output_tokens=6000,
+                verbosity="low",
                 safety_identifier=privacy_safe_identifier(user_id),
                 input=[
-                    {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + LEGAL_POLICY_NL},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":"))},
                 ],
                 text_format=AIPlan,
@@ -251,7 +266,8 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
     telemetry = {
         "model": model,
         "route": route,
-        "reasoning_effort": settings.openai_reasoning_effort,
+        "reasoning_effort": settings.openai_report_reasoning_effort,
+        "extended_safety_policy": needs_extended_safety_policy(narrative),
         "latency_ms": round((time.perf_counter() - started) * 1000),
         "response_id": getattr(response, "id", None),
         **_usage_dict(response),
