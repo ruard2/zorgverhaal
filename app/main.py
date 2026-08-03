@@ -65,10 +65,15 @@ def migrate() -> None:
     # create_all voegt geen kolcommen toe aan bestaande tabellen; deze kolom kan op een
     # eerder aangemaakte form_templates-tabel nog ontbreken.
     with engine.begin() as conn:
-        try:
-            conn.execute(text("ALTER TABLE form_templates ADD COLUMN cadence VARCHAR(20) DEFAULT 'on_demand'"))
-        except Exception:
-            pass  # kolom bestaat al (of DB nog leeg); create_all maakt de tabel volledig aan
+        if conn.dialect.name == "postgresql":
+            # Gunicorn start meerdere workers tegelijk. PostgreSQL serialiseert deze
+            # kleine startupmigratie zodat workers niet dezelfde DDL uitvoeren.
+            conn.execute(text("SELECT pg_advisory_xact_lock(828821473)"))
+            conn.execute(text("ALTER TABLE form_templates ADD COLUMN IF NOT EXISTS cadence VARCHAR(20) DEFAULT 'on_demand'"))
+        else:
+            columns = {row[1] for row in conn.execute(text("PRAGMA table_info(form_templates)"))}
+            if "cadence" not in columns:
+                conn.execute(text("ALTER TABLE form_templates ADD COLUMN cadence VARCHAR(20) DEFAULT 'on_demand'"))
 
 
 @asynccontextmanager

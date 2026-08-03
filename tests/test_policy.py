@@ -28,7 +28,7 @@ def test_prompt_is_lean_and_has_one_question_strategy():
     assert "maximaal één volgende vraag" not in prompt
 
 
-def test_all_reports_use_luna_and_never_self_escalate_to_sol():
+def test_all_reports_use_configured_light_route_and_never_self_escalate_to_sol():
     settings = get_settings()
     assert choose_model("De dienst verliep rustig")[0] == settings.openai_report_model
     assert choose_model("Er was een medicatiefout")[0] == settings.openai_report_model

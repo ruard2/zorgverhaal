@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -13,6 +14,7 @@ from .schemas import AIPlan
 
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class AIUnavailable(RuntimeError):
@@ -240,6 +242,13 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
     except openai.APIConnectionError as exc:
         raise AIUnavailable("De AI is tijdelijk niet bereikbaar. Je invoer is bewaard.", code="connection") from exc
     except openai.APIStatusError as exc:
+        logger.warning(
+            "OpenAI reporting request rejected: status=%s code=%s type=%s model=%s",
+            exc.status_code,
+            getattr(exc, "code", None),
+            getattr(exc, "type", None),
+            model,
+        )
         raise AIUnavailable("De AI kon deze rapportage tijdelijk niet verwerken.", code=f"api_{exc.status_code}") from exc
 
     if not response.output_parsed:
