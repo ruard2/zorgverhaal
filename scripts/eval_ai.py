@@ -44,12 +44,14 @@ def main() -> int:
     failures, results = [], []
     for scenario in scenarios:  # bewust precies één betaalde call per verhaal
         try:
+            target = next((form for form in catalog if form["form_type"] == scenario.get("target_form")), None)
+            selected_forms = [next(form for form in json.loads((ROOT / "app" / "demo_assets" / "forms_bundle.json").read_text(encoding="utf-8"))["forms"] if form["id"] == scenario["target_form"])] if scenario.get("target_form") else daily
             result = next_plan(
                 narrative=scenario["narrative"], conversation=[],
                 client_context="Fictieve demo-cliënt; communiceert in korte zinnen.",
                 goals=[{"goal_id": "goal-demo-1", "title": "Zelf keuzes aangeven", "description": ""}],
                 form_schema={"formal_required": ["narrative"], "contextual_topics": []},
-                fill_forms=daily, form_catalog=[form for form in catalog if any(key in form["form_type"] for key in ({"medication"} if "medicatie" in scenario["narrative"].casefold() and "bakje" in scenario["narrative"].casefold() else set()))],
+                fill_forms=selected_forms, form_catalog=[] if target else [form for form in catalog if any(key in form["form_type"] for key in ({"medication"} if "medicatie" in scenario["narrative"].casefold() and "bakje" in scenario["narrative"].casefold() else set()))],
                 registration_context={"client_name": "Demo Cliënt", "client_reference": "intern-id-niet-tonen", "datetime": "2026-08-03T14:00+02:00", "author": "Diana Stolper", "author_role": "Zorgmedewerker", "location": "Leo Zorg", "current_shift": "Dagdienst", "next_shift": "Avonddienst"},
                 user_id="demo-acceptatie",
             )
@@ -59,11 +61,13 @@ def main() -> int:
         plan, telemetry = result.plan, result.telemetry
         text = visible_text(plan); folded = text.casefold()
         suggestions = {item.form_type for item in plan.suggested_forms}
+        drafts = {item.form_type for item in plan.form_drafts}
         checks = [
             (plan.risk_level.value in scenario["allowed_risks"], f"risico={plan.risk_level.value}"),
             (len(plan.clarification_questions) <= scenario["max_questions"], f"vragen={len(plan.clarification_questions)}"),
             (set(scenario["required_suggestions"]).issubset(suggestions), f"suggesties={sorted(suggestions)}"),
-            (not suggestions.intersection(scenario["forbidden_suggestions"]), f"onterechte_suggesties={sorted(suggestions)}"),
+            (not suggestions.intersection(scenario.get("forbidden_suggestions", [])), f"onterechte_suggesties={sorted(suggestions)}"),
+            (set(scenario.get("expected_drafts", [])).issubset(drafts), f"formulieren={sorted(drafts)}"),
             (not UUID_PATTERN.search(text), "technische UUID zichtbaar"),
             (not any(re.search(rf"\b{re.escape(marker)}\b", folded) for marker in BOT_MARKERS), "bot- of systeemtaal zichtbaar"),
             (duplicate_ratio(plan) <= 0.20, f"herhaling={duplicate_ratio(plan):.0%}"),

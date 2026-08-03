@@ -1,26 +1,12 @@
 [
-  {
-    "id": "demo_rustige_dienst",
-    "narrative": "Henk had een rustige dag volgens zijn normale dagritme. Hij at en dronk zoals gebruikelijk, deed mee met de koffie en puzzelde na de lunch. Er waren geen bijzonderheden, risico's of vervolgacties.",
-    "allowed_risks": ["none"],
-    "max_questions": 0,
-    "required_suggestions": [],
-    "forbidden_suggestions": ["09_internal_incident", "12_medication_deviation"]
-  },
-  {
-    "id": "demo_medicatie_met_effect",
-    "narrative": "Samir gaf om 10:15 aan hoofdpijn te hebben en beoordeelde de pijn als 7 op 10. Volgens de bestaande afspraak kreeg hij twee paracetamol. Om 11:00 gaf Samir aan dat de pijn 2 op 10 was. Hij ging daarna mee wandelen en oogde ontspannen. De avonddienst hoeft alleen te blijven letten op terugkeer van de hoofdpijn.",
-    "allowed_risks": ["none", "attention"],
-    "max_questions": 0,
-    "required_suggestions": [],
-    "forbidden_suggestions": ["12_medication_deviation"]
-  },
-  {
-    "id": "demo_duidelijke_afwijking",
-    "narrative": "Om 13:10 zag ik dat de voorgeschreven medicatie van 12:00 nog in het bakje lag. Marieke had geen zichtbare klachten. Ik heb niets alsnog gegeven en om 13:15 de verpleegkundige gebeld. De verpleegkundige adviseerde de medicatie niet alsnog te geven en Marieke te observeren. De avonddienst controleert haar toestand en koppelt veranderingen terug.",
-    "allowed_risks": ["attention", "urgent"],
-    "max_questions": 0,
-    "required_suggestions": ["12_medication_deviation"],
-    "forbidden_suggestions": []
-  }
+  {"id":"01_rustige_dienst","narrative":"Henk had een rustige dag volgens zijn normale dagritme. Hij at en dronk zoals gebruikelijk, puzzelde na de lunch en er waren geen bijzonderheden, risico's of vervolgacties.","allowed_risks":["none"],"max_questions":0,"required_suggestions":[],"forbidden_suggestions":["09_internal_incident","12_medication_deviation"]},
+  {"id":"02_medicatie_met_effect","narrative":"Samir gaf om 10:15 hoofdpijn aan, pijnscore 7 op 10. Volgens de bestaande afspraak kreeg hij twee paracetamol. Om 11:00 gaf hij pijnscore 2 aan, liep mee naar buiten en oogde ontspannen. De avonddienst let gedurende de dienst op terugkeer van hoofdpijn.","allowed_risks":["none","attention"],"max_questions":1,"required_suggestions":[],"forbidden_suggestions":["12_medication_deviation"]},
+  {"id":"03_medicatie_afwijking","narrative":"Om 13:10 zag ik dat de voorgeschreven medicatie van 12:00 nog in het bakje lag. Marieke had geen zichtbare klachten. Ik gaf niets alsnog en belde om 13:15 de verpleegkundige. Advies: niet alsnog geven en observeren. De avonddienst controleert haar toestand gedurende de dienst en koppelt veranderingen terug.","allowed_risks":["attention","urgent"],"max_questions":1,"required_suggestions":["12_medication_deviation"],"forbidden_suggestions":[]},
+  {"id":"04_valincident_formulier","target_form":"09_internal_incident","narrative":"Op 3 augustus 2026 om 09:20 gleed Henk naast zijn bed uit en kwam op zijn knieën terecht. Ik zag het zelf. Ik zag geen wond of zwelling; Henk zei geen pijn te hebben. Ik hielp hem rustig overeind, controleerde hem opnieuw om 09:35 en informeerde verpleegkundige Eva om 09:40. Eva observeert vandaag verder. De losse mat naast het bed is verwijderd en wordt door teamleider Noor voor 4 augustus vervangen.","allowed_risks":["attention","urgent"],"max_questions":4,"required_suggestions":[],"expected_drafts":["09_internal_incident"]},
+  {"id":"05_verzet_wzd_formulier","target_form":"11_wzd_resistance","narrative":"Marieke trok haar arm terug en zei tweemaal 'nee' toen ik haar om 08:30 wilde helpen douchen. Ik stopte direct. Zij wees naar de wastafel. Ik bood wassen aan de wastafel aan; dat accepteerde zij en voerde deels zelf uit. Er was geen direct ernstig nadeel. Ik leg dit vast als concreet verzet en bespreek met begeleider Noor vandaag welke vrijwillige aanpak voortaan wordt gebruikt.","allowed_risks":["attention"],"max_questions":4,"required_suggestions":[],"expected_drafts":["11_wzd_resistance"]},
+  {"id":"06_acute_crisis_formulier","target_form":"13_acute_crisis","narrative":"Samir werd op 3 augustus om 14:05 plots ernstig benauwd, reageerde nauwelijks op aanspreken en had blauwe lippen; dit week duidelijk af van normaal. Ik belde direct 112 om 14:06, volgde de instructies van de meldkamer en bleef bij hem. Om 14:12 reageerde hij weer met korte woorden. Ambulance arriveerde om 14:18 en nam de zorg over. Teamleider Noor en contactpersoon Amina zijn om 14:25 geïnformeerd.","allowed_risks":["urgent"],"max_questions":4,"required_suggestions":[],"expected_drafts":["13_acute_crisis"]},
+  {"id":"07_vermissing_formulier","target_form":"14_missing_wandering","narrative":"Henk is op 3 augustus om 16:00 voor het laatst gezien bij de achterdeur, droeg een blauwe jas en grijze broek. Om 16:10 bleek hij niet in het gebouw of de tuin. Vanwege dementie en verkeersrisico startten Noor en Eva direct het zoekprotocol; Noor belde om 16:12 de politie en Eva om 16:15 dochter Anja. Henk werd om 16:32 ongedeerd aangetroffen bij de bushalte en teruggebracht. Noor evalueert morgen de achterdeurafspraak.","allowed_risks":["attention","urgent"],"max_questions":4,"required_suggestions":[],"expected_drafts":["14_missing_wandering"]},
+  {"id":"08_klacht_formulier","target_form":"16_complaint_feedback","narrative":"Dochter Anja zei op 3 augustus: 'Ik krijg te laat bericht als mijn vader onrustig is.' Zij wil dezelfde dag worden gebeld bij duidelijke toename van onrust. Teamleider Noor ontving de klacht om 11:00, bevestigde ontvangst en spreekt Anja op 5 augustus. Noor koppelt uiterlijk 8 augustus de uitkomst terug. Anja weet dat zij desgewenst de onafhankelijke klachtenfunctionaris kan benaderen.","allowed_risks":["none","attention"],"max_questions":4,"required_suggestions":[],"expected_drafts":["16_complaint_feedback"]},
+  {"id":"09_doelevaluatie_formulier","target_form":"07_goal_evaluation","narrative":"Doel: Marieke kiest bij de ochtendzorg zelfstandig tussen douche en wastafel. In de afgelopen vier weken koos zij op 16 van 20 dagen zonder extra uitleg; de beginsituatie was 6 van 20 dagen. Marieke zei: 'Zelf kiezen is fijn.' Het team stelt voor de ondersteuning met twee pictogrammen voort te zetten en over zes weken opnieuw te evalueren. Begeleider Noor legt het voorstel op 4 augustus voor aan de bevoegde zorgplanbespreking; er is nog geen definitief besluit.","allowed_risks":["none"],"max_questions":4,"required_suggestions":[],"expected_drafts":["07_goal_evaluation"]},
+  {"id":"10_einde_zorg_formulier","target_form":"17_end_of_care","narrative":"De zorg eindigt op 31 augustus 2026 omdat Samir verhuist naar woonlocatie De Linde. Samir zei de verhuizing spannend maar goed te vinden. Open aandachtspunt is prikkelgevoeligheid bij onverwachte veranderingen. Met toestemming van Samir worden actueel zorgplan, medicatieoverzicht en signaleringsplan op 28 augustus beveiligd overgedragen aan verpleegkundige Eva van De Linde. Begeleider Noor controleert ontvangst op 29 augustus en sluit het dossier na de laatste rapportage op 31 augustus.","allowed_risks":["none","attention"],"max_questions":4,"required_suggestions":[],"expected_drafts":["17_end_of_care"]}
 ]

@@ -30,6 +30,14 @@ DEFAULT_SHIFTS = [
 ]
 
 
+def professional_user_label(user: User | None) -> str:
+    if not user:
+        return "Onbekende medewerker"
+    name = user.email.split("@", 1)[0].replace(".", " ").replace("_", " ").replace("-", " ").title()
+    role = {"caregiver": "Zorgmedewerker", "org_admin": "Organisatiebeheerder", "platform_admin": "Platformbeheerder"}.get(user.role, "Medewerker")
+    return f"{name} · {role}"
+
+
 def organization_shifts(db: Session, organization_id: str) -> list[dict]:
     row = db.scalar(select(OrganizationSettings).where(OrganizationSettings.organization_id == organization_id))
     branding = decrypt_json(row.branding_enc) if row else {}
@@ -73,6 +81,8 @@ def migrate() -> None:
             Base.metadata.create_all(bind=conn)
             conn.execute(text("ALTER TABLE form_templates ADD COLUMN IF NOT EXISTS cadence VARCHAR(20) DEFAULT 'on_demand'"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS form_mode VARCHAR(20) DEFAULT 'ask'"))
+            conn.execute(text("ALTER TABLE form_submissions ADD COLUMN IF NOT EXISTS session_id VARCHAR(36) REFERENCES reporting_sessions(id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_form_submissions_session_id ON form_submissions (session_id)"))
         else:
             Base.metadata.create_all(bind=conn)
             columns = {row[1] for row in conn.execute(text("PRAGMA table_info(form_templates)"))}
@@ -81,6 +91,10 @@ def migrate() -> None:
             user_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
             if "form_mode" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN form_mode VARCHAR(20) DEFAULT 'ask'"))
+            submission_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(form_submissions)"))}
+            if "session_id" not in submission_columns:
+                conn.execute(text("ALTER TABLE form_submissions ADD COLUMN session_id VARCHAR(36) REFERENCES reporting_sessions(id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_form_submissions_session_id ON form_submissions (session_id)"))
 
 
 @asynccontextmanager
@@ -735,8 +749,8 @@ def run_ai(db: Session, row: ReportingSession, user: User):
     # De AI hoeft daardoor niet bij iedere rustige dienst zeventien formulieren te lezen.
     form_catalog = [] if target_form else [form for form in build_form_catalog(db, row.organization_id) if incident_form_relevant(form["form_type"], narrative)]
     org = db.get(Organization, row.organization_id)
-    role_label = {"caregiver": "Zorgmedewerker", "org_admin": "Organisatiebeheerder", "platform_admin": "Platformbeheerder"}.get(user.role, "Zorgmedewerker")
-    name_label = user.email.split("@", 1)[0].replace(".", " ").replace("_", " ").replace("-", " ").title()
+    role_label = professional_user_label(user).split(" · ", 1)[-1]
+    name_label = professional_user_label(user).split(" · ", 1)[0]
     registration_context = {
         "client_name": decrypt_text(client.display_name_enc),
         "client_reference": client.id,
@@ -866,7 +880,7 @@ def finalize(session_id: str, data: FinalizeIn, db: Session = Depends(get_db), u
     db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="report.finalized", target_type="report", target_id=report.id, details=json.dumps({"session": row.id, "report_edited": data.report_text.strip() != str(plan.get("draft_report") or "").strip(), "edited_fields": edited_fields}, ensure_ascii=False)))
     submissions_created = 0
     for tpl, final_answers in prepared_submissions:
-        sub = FormSubmission(organization_id=user.organization_id, client_id=row.client_id, form_template_id=tpl.id, form_type=tpl.form_type, form_title=tpl.title, author_id=user.id, data_enc=encrypt_json(final_answers))
+        sub = FormSubmission(organization_id=user.organization_id, client_id=row.client_id, form_template_id=tpl.id, form_type=tpl.form_type, form_title=tpl.title, author_id=user.id, session_id=row.id, data_enc=encrypt_json(final_answers))
         db.add(sub); db.flush()
         audit(db, user, "form.submitted", "form_submission", sub.id, {"form_type": tpl.form_type, "session": row.id})
         submissions_created += 1
@@ -893,15 +907,29 @@ def review_payload(db: Session, review: ReportReview) -> dict:
 @app.get("/api/organization/workspace")
 def organization_workspace(db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_role(user, "org_admin")
+    now_utc = datetime.now(timezone.utc)
+    local_now = datetime.now(ZoneInfo("Europe/Amsterdam"))
+    start_utc = local_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    reports_today = db.scalars(select(Report).where(Report.organization_id == user.organization_id, Report.signed_at >= start_utc)).all()
+    forms_today = db.scalars(select(FormSubmission).where(FormSubmission.organization_id == user.organization_id, FormSubmission.created_at >= start_utc)).all()
     reports = db.scalars(select(Report).where(Report.organization_id == user.organization_id).order_by(Report.signed_at.desc()).limit(30)).all()
     reviews = db.scalars(select(ReportReview).where(ReportReview.organization_id == user.organization_id).order_by(ReportReview.created_at.desc()).limit(50)).all()
-    today = datetime.now(timezone.utc).date()
     recent = []
     for report in reports:
         client = db.get(Client, report.client_id); author = db.get(User, report.author_id)
-        recent.append({"id": report.id, "client_id": report.client_id, "client_name": decrypt_text(client.display_name_enc) if client else "Onbekende cliënt", "author": author.email if author else "", "signed_at": report.signed_at.isoformat()})
+        recent.append({"id": report.id, "client_id": report.client_id, "client_name": decrypt_text(client.display_name_enc) if client else "Onbekende cliënt", "author": professional_user_label(author), "signed_at": report.signed_at.isoformat()})
     open_reviews = [review_payload(db, item) for item in reviews if item.status in ("open", "answered")]
-    return {"metrics": {"reports_today": sum(item.signed_at.date() == today for item in reports), "open_questions": sum(item.status == "open" for item in reviews), "answers_to_review": sum(item.status == "answered" for item in reviews)}, "reviews": open_reviews, "recent_reports": recent}
+    daily_forms = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.status == "active", FormTemplate.cadence == "daily", FormTemplate.form_type != "daily_care")).all()
+    active_clients = db.scalars(select(Client).where(Client.organization_id == user.organization_id, Client.active.is_(True))).all()
+    completed = {(item.client_id, item.form_type) for item in forms_today if item.client_id}
+    missing_daily = []
+    for client in active_clients:
+        missing = [form.title for form in daily_forms if (client.id, form.form_type) not in completed]
+        if missing:
+            missing_daily.append({"client_id": client.id, "client_name": decrypt_text(client.display_name_enc), "missing_forms": missing, "count": len(missing)})
+    overdue = sum(review.status == "open" and review.due_at is not None and (review.due_at.replace(tzinfo=timezone.utc) if review.due_at.tzinfo is None else review.due_at) < now_utc for review in reviews)
+    care_minutes = sum(int((decrypt_json(report.metadata_enc) or {}).get("care_minutes") or 0) for report in reports_today)
+    return {"metrics": {"reports_today": len(reports_today), "forms_today": len(forms_today), "care_minutes_today": care_minutes, "missing_daily": sum(item["count"] for item in missing_daily), "open_questions": sum(item.status == "open" for item in reviews), "overdue_questions": overdue, "answers_to_review": sum(item.status == "answered" for item in reviews)}, "reviews": open_reviews, "missing_daily": missing_daily, "recent_reports": recent}
 
 
 @app.get("/api/organization/clients/{client_id}/timeline")
@@ -912,13 +940,13 @@ def organization_client_timeline(client_id: str, db: Session = Depends(get_db), 
     events = []
     for report in db.scalars(select(Report).where(Report.client_id == client_id, Report.organization_id == user.organization_id)).all():
         author = db.get(User, report.author_id)
-        events.append({"kind": "report", "id": report.id, "title": "Dagrapportage", "subtitle": author.email if author else "", "created_at": report.signed_at.isoformat()})
+        events.append({"kind": "report", "id": report.id, "title": "Dagrapportage", "subtitle": professional_user_label(author), "created_at": report.signed_at.isoformat()})
     for submission in db.scalars(select(FormSubmission).where(FormSubmission.client_id == client_id, FormSubmission.organization_id == user.organization_id)).all():
         author = db.get(User, submission.author_id)
-        events.append({"kind": "form", "id": submission.id, "title": submission.form_title, "subtitle": author.email if author else "", "created_at": submission.created_at.isoformat()})
+        events.append({"kind": "form", "id": submission.id, "title": submission.form_title, "subtitle": professional_user_label(author), "created_at": submission.created_at.isoformat()})
     for addendum in db.scalars(select(ReportAddendum).where(ReportAddendum.client_id == client_id, ReportAddendum.organization_id == user.organization_id)).all():
         author = db.get(User, addendum.author_id)
-        events.append({"kind": "addendum", "id": addendum.id, "report_id": addendum.report_id, "title": "Aanvulling op rapportage", "subtitle": author.email if author else "", "created_at": addendum.created_at.isoformat()})
+        events.append({"kind": "addendum", "id": addendum.id, "report_id": addendum.report_id, "title": "Aanvulling op rapportage", "subtitle": professional_user_label(author), "created_at": addendum.created_at.isoformat()})
     events.sort(key=lambda item: item["created_at"], reverse=True)
     audit(db, user, "dossier.timeline_viewed", "client", client.id); db.commit()
     return {"client": {"id": client.id, "display_name": decrypt_text(client.display_name_enc), "context": decrypt_text(client.context_enc), "goals": [decrypt_text(goal.title_enc) for goal in client.goals if goal.active]}, "events": events}
@@ -933,7 +961,16 @@ def organization_report(report_id: str, db: Session = Depends(get_db), user: Use
     reviews = db.scalars(select(ReportReview).where(ReportReview.report_id == report.id).order_by(ReportReview.created_at.desc())).all()
     audit(db, user, "dossier.report_viewed", "report", report.id); db.commit()
     metadata = decrypt_json(report.metadata_enc)
-    return {"id": report.id, "client_id": report.client_id, "client_name": decrypt_text(client.display_name_enc) if client else "", "author": author.email if author else "", "signed_at": report.signed_at.isoformat(), "report_text": decrypt_text(report.report_text_enc), "care_minutes": metadata.get("care_minutes"), "reviews": [review_payload(db, item) for item in reviews], "immutable": True}
+    submissions = db.scalars(select(FormSubmission).where(FormSubmission.session_id == report.session_id).order_by(FormSubmission.created_at)).all()
+    rendered_submissions = []
+    for submission in submissions:
+        template = db.get(FormTemplate, submission.form_template_id)
+        schema = decrypt_json(template.schema_enc) if template else {}
+        labels = {field.get("id"): field.get("label", field.get("id")) for section in schema.get("sections", []) for field in section.get("fields", [])} if isinstance(schema, dict) else {}
+        answers = decrypt_json(submission.data_enc)
+        fields = [{"id": key, "label": labels.get(key, key.replace("_", " ").title()), "value": value, "empty": value in (None, "", [])} for key, value in answers.items()]
+        rendered_submissions.append({"id": submission.id, "title": submission.form_title, "form_type": submission.form_type, "fields": fields, "filled": sum(not field["empty"] for field in fields), "empty": sum(field["empty"] for field in fields)})
+    return {"id": report.id, "client_id": report.client_id, "client_name": decrypt_text(client.display_name_enc) if client else "", "author": professional_user_label(author), "signed_at": report.signed_at.isoformat(), "report_text": decrypt_text(report.report_text_enc), "care_minutes": metadata.get("care_minutes"), "submissions": rendered_submissions, "reviews": [review_payload(db, item) for item in reviews], "immutable": True}
 
 
 @app.post("/api/organization/reports/{report_id}/request-addition")

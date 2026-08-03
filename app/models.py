@@ -183,6 +183,7 @@ class FormSubmission(Base):
     form_type: Mapped[str] = mapped_column(String(50), index=True)
     form_title: Mapped[str] = mapped_column(String(180))
     author_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    session_id: Mapped[str | None] = mapped_column(ForeignKey("reporting_sessions.id"), nullable=True, index=True)
     data_enc: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(30), default="submitted", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)

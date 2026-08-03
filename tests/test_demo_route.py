@@ -51,8 +51,13 @@ def test_complete_demo_route_three_reports_and_linked_addendum(monkeypatch):
         workspace = browser.get("/api/organization/workspace", headers=admin_headers)
         assert workspace.status_code == 200
         assert {item["id"] for item in workspace.json()["recent_reports"]}.issuperset(report_ids)
+        assert workspace.json()["metrics"]["reports_today"] >= 3
+        assert workspace.json()["metrics"]["forms_today"] >= 3
         timeline = browser.get(f"/api/organization/clients/{client_id}/timeline", headers=admin_headers)
         assert sum(event["kind"] == "report" for event in timeline.json()["events"]) >= 3
+        detail = browser.get(f"/api/organization/reports/{report_ids[-1]}", headers=admin_headers)
+        assert detail.status_code == 200
+        assert detail.json()["submissions"][0]["fields"][0]["label"] == "Waarneembare feiten"
 
         requested = browser.post(f"/api/organization/reports/{report_ids[-1]}/request-addition", json={"question": "Wat zag je na het contact met de verpleegkundige?"}, headers=admin_headers)
         assert requested.status_code == 200
@@ -61,5 +66,11 @@ def test_complete_demo_route_three_reports_and_linked_addendum(monkeypatch):
         assert review_id in {item["id"] for item in tasks.json()}
         answered = browser.post(f"/api/my/review-requests/{review_id}/addendum", json={"text": "Samir bleef rustig en ik zag geen zichtbare klachten."}, headers=caregiver_headers)
         assert answered.status_code == 200
+        after_answer = browser.get("/api/organization/workspace", headers=admin_headers)
+        assert after_answer.json()["metrics"]["answers_to_review"] >= 1
+        reviewed_detail = browser.get(f"/api/organization/reports/{report_ids[-1]}", headers=admin_headers)
+        assert reviewed_detail.json()["reviews"][0]["addendum"] == "Samir bleef rustig en ik zag geen zichtbare klachten."
         closed = browser.post(f"/api/organization/reviews/{review_id}/close", headers=admin_headers)
         assert closed.status_code == 200
+        audit = browser.get("/api/organization/audit", headers=admin_headers)
+        assert {item["action"] for item in audit.json()}.issuperset({"report.addition_requested", "report.addendum_submitted", "report.addition_closed"})
