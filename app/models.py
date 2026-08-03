@@ -28,6 +28,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(30), default="caregiver")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     form_mode: Mapped[str] = mapped_column(String(20), default="ask")
+    display_name: Mapped[str] = mapped_column(String(120), default="")
+    employee_number: Mapped[str] = mapped_column(String(30), default="", index=True)
 
 
 class Client(Base):
@@ -136,6 +138,9 @@ class Invitation(Base):
     uses: Mapped[int] = mapped_column(Integer, default=0)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    employee_name: Mapped[str] = mapped_column(String(120), default="")
+    employee_number: Mapped[str] = mapped_column(String(30), default="", index=True)
+    intended_email: Mapped[str] = mapped_column(String(320), default="")
 
 
 class ClientAssignment(Base):

@@ -18,7 +18,7 @@ from .config import get_settings
 from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
 from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
-from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
+from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
@@ -81,6 +81,11 @@ def migrate() -> None:
             Base.metadata.create_all(bind=conn)
             conn.execute(text("ALTER TABLE form_templates ADD COLUMN IF NOT EXISTS cadence VARCHAR(20) DEFAULT 'on_demand'"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS form_mode VARCHAR(20) DEFAULT 'ask'"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(120) DEFAULT ''"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_number VARCHAR(30) DEFAULT ''"))
+            conn.execute(text("ALTER TABLE invitations ADD COLUMN IF NOT EXISTS employee_name VARCHAR(120) DEFAULT ''"))
+            conn.execute(text("ALTER TABLE invitations ADD COLUMN IF NOT EXISTS employee_number VARCHAR(30) DEFAULT ''"))
+            conn.execute(text("ALTER TABLE invitations ADD COLUMN IF NOT EXISTS intended_email VARCHAR(320) DEFAULT ''"))
             conn.execute(text("ALTER TABLE form_submissions ADD COLUMN IF NOT EXISTS session_id VARCHAR(36) REFERENCES reporting_sessions(id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_form_submissions_session_id ON form_submissions (session_id)"))
         else:
@@ -91,6 +96,13 @@ def migrate() -> None:
             user_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
             if "form_mode" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN form_mode VARCHAR(20) DEFAULT 'ask'"))
+            for column, definition in (("display_name", "VARCHAR(120) DEFAULT ''"), ("employee_number", "VARCHAR(30) DEFAULT ''")):
+                if column not in user_columns:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {column} {definition}"))
+            invitation_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(invitations)"))}
+            for column, definition in (("employee_name", "VARCHAR(120) DEFAULT ''"), ("employee_number", "VARCHAR(30) DEFAULT ''"), ("intended_email", "VARCHAR(320) DEFAULT ''")):
+                if column not in invitation_columns:
+                    conn.execute(text(f"ALTER TABLE invitations ADD COLUMN {column} {definition}"))
             submission_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(form_submissions)"))}
             if "session_id" not in submission_columns:
                 conn.execute(text("ALTER TABLE form_submissions ADD COLUMN session_id VARCHAR(36) REFERENCES reporting_sessions(id)"))
@@ -143,7 +155,7 @@ def logout(response: Response):
 
 
 @app.get("/api/me")
-def me(user: User = Depends(current_user)): return {"email": user.email, "role": user.role, "form_mode": user.form_mode or "ask"}
+def me(user: User = Depends(current_user)): return {"email": user.email, "name": user.display_name or user.email.split("@")[0], "employee_number": user.employee_number or "", "role": user.role, "form_mode": user.form_mode or "ask"}
 
 
 @app.post("/api/me/form-mode")
@@ -262,7 +274,7 @@ def create_client(data: ClientIn, db: Session = Depends(get_db), user: User = De
 def staff(db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_role(user, "org_admin")
     rows = db.scalars(select(User).where(User.organization_id == user.organization_id, User.active.is_(True))).all()
-    return [{"id": u.id, "email": u.email, "role": u.role, "assigned_client_ids": db.scalars(select(ClientAssignment.client_id).where(ClientAssignment.user_id == u.id)).all()} for u in rows]
+    return [{"id": u.id, "email": u.email, "name": u.display_name or u.email.split("@")[0], "employee_number": u.employee_number or "", "role": u.role, "assigned_client_ids": db.scalars(select(ClientAssignment.client_id).where(ClientAssignment.user_id == u.id)).all()} for u in rows]
 
 
 @app.post("/api/organization/assignments")
@@ -277,20 +289,28 @@ def assign_client(data: AssignmentIn, db: Session = Depends(get_db), user: User 
     return {"ok": True}
 
 
+def next_employee_number(db: Session, organization_id: str) -> str:
+    values = [value for value in db.scalars(select(User.employee_number).where(User.organization_id == organization_id)).all() if value]
+    values += [value for value in db.scalars(select(Invitation.employee_number).where(Invitation.organization_id == organization_id)).all() if value]
+    sequence = max([int(value.rsplit("-", 1)[-1]) for value in values if value.rsplit("-", 1)[-1].isdigit()] or [0]) + 1
+    return f"MW-{sequence:04d}"
+
+
 @app.post("/api/organization/invitations")
-def create_invitation(db: Session = Depends(get_db), user: User = Depends(current_user)):
+def create_invitation(data: InvitationIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_role(user, "org_admin")
     token = secrets.token_urlsafe(32)
-    invitation = Invitation(organization_id=user.organization_id, created_by=user.id, token_hash=hashlib.sha256(token.encode()).hexdigest(), role="caregiver", expires_at=datetime.now(timezone.utc) + timedelta(days=7), max_uses=25)
-    db.add(invitation); db.flush(); audit(db, user, "invitation.created", "invitation", invitation.id); db.commit()
-    return {"id": invitation.id, "token": token, "expires_at": invitation.expires_at.isoformat()}
+    number = next_employee_number(db, user.organization_id)
+    invitation = Invitation(organization_id=user.organization_id, created_by=user.id, token_hash=hashlib.sha256(token.encode()).hexdigest(), role="caregiver", expires_at=datetime.now(timezone.utc) + timedelta(days=7), max_uses=1, employee_name=data.employee_name.strip(), employee_number=number, intended_email=str(data.email or "").lower())
+    db.add(invitation); db.flush(); audit(db, user, "invitation.created", "invitation", invitation.id, {"employee_number": number}); db.commit()
+    return {"id": invitation.id, "token": token, "employee_name": invitation.employee_name, "employee_number": number, "expires_at": invitation.expires_at.isoformat()}
 
 
 @app.get("/api/organization/invitations")
 def list_invitations(db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_role(user, "org_admin")
     rows = db.scalars(select(Invitation).where(Invitation.organization_id == user.organization_id).order_by(Invitation.created_at.desc())).all()
-    return [{"id": i.id, "expires_at": i.expires_at.isoformat(), "uses": i.uses, "max_uses": i.max_uses, "revoked": i.revoked, "expired": invitation_expired(i)} for i in rows]
+    return [{"id": i.id, "employee_name": i.employee_name or "Nieuwe medewerker", "employee_number": i.employee_number or "", "intended_email": i.intended_email or "", "expires_at": i.expires_at.isoformat(), "uses": i.uses, "max_uses": i.max_uses, "revoked": i.revoked, "expired": invitation_expired(i)} for i in rows]
 
 
 @app.post("/api/organization/invitations/{invitation_id}/revoke")
@@ -306,7 +326,7 @@ def invitation_info(token: str, db: Session = Depends(get_db)):
     invitation = db.scalar(select(Invitation).where(Invitation.token_hash == hashlib.sha256(token.encode()).hexdigest()))
     if not invitation or invitation.revoked or invitation.uses >= invitation.max_uses or invitation_expired(invitation): raise HTTPException(410, "Uitnodiging is verlopen of ingetrokken")
     org = db.get(Organization, invitation.organization_id)
-    return {"organization": org.name, "role": invitation.role}
+    return {"organization": org.name, "role": invitation.role, "employee_name": invitation.employee_name, "employee_number": invitation.employee_number, "intended_email": invitation.intended_email}
 
 
 @app.post("/api/join/{token}")
@@ -314,7 +334,8 @@ def join_organization(token: str, data: JoinIn, response: Response, db: Session 
     invitation = db.scalar(select(Invitation).where(Invitation.token_hash == hashlib.sha256(token.encode()).hexdigest()))
     if not invitation or invitation.revoked or invitation.uses >= invitation.max_uses or invitation_expired(invitation): raise HTTPException(410, "Uitnodiging is verlopen of ingetrokken")
     if db.scalar(select(User).where(User.email == data.email.lower())): raise HTTPException(409, "Dit e-mailadres bestaat al")
-    worker = User(organization_id=invitation.organization_id, email=data.email.lower(), password_hash=hash_password(data.password), role=invitation.role)
+    if invitation.intended_email and invitation.intended_email != data.email.lower(): raise HTTPException(409, "Gebruik het e-mailadres waarvoor deze uitnodiging is gemaakt")
+    worker = User(organization_id=invitation.organization_id, email=data.email.lower(), password_hash=hash_password(data.password), role=invitation.role, display_name=data.name.strip() or invitation.employee_name, employee_number=invitation.employee_number)
     db.add(worker); db.flush(); invitation.uses += 1
     db.add(AuditLog(organization_id=invitation.organization_id, user_id=worker.id, action="invitation.accepted", target_type="user", target_id=worker.id))
     db.commit(); response.set_cookie("zorg_session", issue_token(worker), httponly=True, secure=settings.cookie_secure, samesite="lax", max_age=43200)

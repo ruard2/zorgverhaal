@@ -128,6 +128,11 @@ class JoinIn(BaseModel):
     password: str = Field(min_length=12, max_length=200)
 
 
+class InvitationIn(BaseModel):
+    employee_name: str = Field(min_length=2, max_length=120)
+    email: EmailStr | None = None
+
+
 class ReminderIn(BaseModel):
     client_id: str | None = None
     assigned_user_id: str | None = None
