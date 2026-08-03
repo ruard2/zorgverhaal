@@ -210,3 +210,23 @@ def test_targeted_form_page_renders_simple_or_detailed_preparation_without_ai():
     assert "form.preparation" in frontend
     assert "Formulier zelf invullen" in frontend
     assert 'formFillPage(form.id)' in frontend
+
+
+def test_form_mode_choice_can_be_remembered_and_changed_in_settings():
+    from pathlib import Path
+
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "Hoe wil je dit formulier invullen?" in frontend
+    assert "Onthoud mijn keuze" in frontend
+    assert "employeeSettingsPage" in frontend
+    assert 'api("/api/me/form-mode"' in frontend
+    assert "Altijd eerst vragen" in frontend
+
+
+def test_form_mode_is_a_validated_server_side_user_preference():
+    import inspect
+    from app.main import me, migrate, set_my_form_mode
+
+    assert "form_mode" in inspect.getsource(me)
+    assert "user.form_mode = data.form_mode" in inspect.getsource(set_my_form_mode)
+    assert "ADD COLUMN IF NOT EXISTS form_mode" in inspect.getsource(migrate)

@@ -77,6 +77,10 @@ class LoginIn(BaseModel):
     password: str
 
 
+class FormModeIn(BaseModel):
+    form_mode: str = Field(pattern="^(ask|ai|manual)$")
+
+
 class ClientIn(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
     context: str = Field(default="", max_length=4000)

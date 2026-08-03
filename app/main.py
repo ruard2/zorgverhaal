@@ -18,7 +18,7 @@ from .config import get_settings
 from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
 from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportingSession, User
-from .schemas import AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ShiftSettingsIn, StartSessionIn
+from .schemas import AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
@@ -71,10 +71,14 @@ def migrate() -> None:
             # kleine startupmigratie zodat workers niet dezelfde DDL uitvoeren.
             conn.execute(text("SELECT pg_advisory_xact_lock(828821473)"))
             conn.execute(text("ALTER TABLE form_templates ADD COLUMN IF NOT EXISTS cadence VARCHAR(20) DEFAULT 'on_demand'"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS form_mode VARCHAR(20) DEFAULT 'ask'"))
         else:
             columns = {row[1] for row in conn.execute(text("PRAGMA table_info(form_templates)"))}
             if "cadence" not in columns:
                 conn.execute(text("ALTER TABLE form_templates ADD COLUMN cadence VARCHAR(20) DEFAULT 'on_demand'"))
+            user_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
+            if "form_mode" not in user_columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN form_mode VARCHAR(20) DEFAULT 'ask'"))
 
 
 @asynccontextmanager
@@ -114,7 +118,15 @@ def logout(response: Response):
 
 
 @app.get("/api/me")
-def me(user: User = Depends(current_user)): return {"email": user.email, "role": user.role}
+def me(user: User = Depends(current_user)): return {"email": user.email, "role": user.role, "form_mode": user.form_mode or "ask"}
+
+
+@app.post("/api/me/form-mode")
+def set_my_form_mode(data: FormModeIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    user.form_mode = data.form_mode
+    audit(db, user, "user.form_mode_changed", "user", user.id, {"form_mode": data.form_mode})
+    db.commit()
+    return {"form_mode": user.form_mode}
 
 
 def require_role(user: User, *roles: str) -> None:

@@ -19,6 +19,7 @@ Een organisatiebeheerder kan zonder apart account de medewerkersdemo openen. All
 - De medewerker ziet direct een lokaal concept met bronnotitie en bekende dienstgegevens terwijl de inhoudelijke AI-call loopt.
 - De medewerkershomepage groepeert open dagtaken, toegewezen cliënten en alle actieve formulieren. Een bewust gekozen formulier gebruikt dezelfde cliëntkeuze, vrije invoer, AI-verheldering en menselijke eindcontrole, waarbij alleen dat formulier naar de AI gaat.
 - Ieder formulier houdt daarnaast een volledig handmatige route met de oorspronkelijke velden, opties en verplichtingen; deze route doet geen AI-call.
+- Na formulier- en cliëntkeuze kiest de medewerker AI of handmatig. Deze keuze kan per medewerker worden onthouden en via de instellingenknop altijd worden gewijzigd of teruggezet op ‘altijd vragen’.
 - Dagrapportages worden stabiel verdeeld over Terra (controle) en Luna (experiment); audittelemetrie maakt vergelijking van latency, tokens en kwaliteit mogelijk.
 - De dagelijkse rapportage verstuurt nooit de uitgebreide formulier-specifieke juridische prompt. Een gekozen aanvullend formulier wordt in de huidige flow handmatig ingevuld, dus daarvoor is geen extra AI-call nodig. API-responses worden niet bij OpenAI opgeslagen (`store=false`).
 - Relevante incident-, medicatie-, Wzd- en crisisformulieren worden direct in dezelfde call als concept ingevuld.
