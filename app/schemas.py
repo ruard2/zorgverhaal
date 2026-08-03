@@ -29,6 +29,20 @@ class FormSuggestion(BaseModel):
     urgency: str = Field(default="normal", pattern="^(normal|soon|urgent)$")
 
 
+class FilledField(BaseModel):
+    field_id: str
+    label: str
+    value: str = ""
+    status: str = Field(default="filled", pattern="^(filled|unknown|needs_input)$")
+
+
+class FormDraft(BaseModel):
+    form_type: str
+    title: str
+    complete: bool = False
+    fields: list[FilledField] = Field(default_factory=list)
+
+
 class AIPlan(BaseModel):
     state: str = Field(pattern="^(ask|ready|urgent)$")
     risk_level: RiskLevel
@@ -43,6 +57,7 @@ class AIPlan(BaseModel):
     legal_signals: list[LegalSignal] = Field(default_factory=list)
     goal_suggestions: list[GoalSuggestion] = Field(default_factory=list)
     suggested_forms: list[FormSuggestion] = Field(default_factory=list)
+    form_drafts: list[FormDraft] = Field(default_factory=list)
     incident_review_required: bool = False
     human_review_note: str
 
@@ -67,10 +82,16 @@ class AnswerIn(BaseModel):
     answer: str = Field(min_length=1, max_length=4000)
 
 
+class FinalFormIn(BaseModel):
+    form_type: str
+    answers: dict = Field(default_factory=dict)
+
+
 class FinalizeIn(BaseModel):
     report_text: str = Field(min_length=3, max_length=16000)
     care_minutes: int = Field(ge=0, le=1440)
     selected_goal_ids: list[str] = Field(default_factory=list)
+    form_submissions: list[FinalFormIn] = Field(default_factory=list)
     incident_review_acknowledged: bool = False
     human_review_confirmed: bool
 

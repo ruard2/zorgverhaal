@@ -328,6 +328,21 @@ def load_form_library() -> list[dict]:
     return bundle.get("forms", [])
 
 
+def compact_form(f: FormTemplate) -> dict:
+    schema = decrypt_json(f.schema_enc)
+    schema = schema if isinstance(schema, dict) else {}
+    sections = []
+    for sec in schema.get("sections", []):
+        fields = [{"id": fl.get("id"), "label": fl.get("label"), "type": fl.get("type", "text"), "required": bool(fl.get("required")), "options": fl.get("options", [])} for fl in sec.get("fields", [])]
+        sections.append({"title": sec.get("title", ""), "fields": fields})
+    return {"form_type": f.form_type, "title": f.title, "cadence": f.cadence, "purpose": schema.get("purpose", ""), "safety_triggers": schema.get("safety_triggers", []), "sections": sections}
+
+
+def forms_to_fill(db: Session, organization_id: str) -> list[dict]:
+    rows = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == organization_id, FormTemplate.status == "active", FormTemplate.cadence.in_(["daily", "incident"]), FormTemplate.form_type != "daily_care").order_by(FormTemplate.cadence, FormTemplate.form_type)).all()
+    return [compact_form(f) for f in rows]
+
+
 def build_form_catalog(db: Session, organization_id: str) -> list[dict]:
     rows = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == organization_id, FormTemplate.status == "active", FormTemplate.cadence != "disabled", FormTemplate.form_type != "daily_care")).all()
     catalog = []
@@ -512,7 +527,7 @@ def run_ai(db: Session, row: ReportingSession, user: User):
     form = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == row.organization_id, FormTemplate.form_type == "daily_care", FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
     form_schema = decrypt_json(form.schema_enc) if form else DAILY_FORM_SCHEMA
     try:
-        plan = next_plan(narrative=decrypt_text(row.narrative_enc), conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, form_catalog=build_form_catalog(db, row.organization_id))
+        plan = next_plan(narrative=decrypt_text(row.narrative_enc), conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=forms_to_fill(db, row.organization_id), form_catalog=build_form_catalog(db, row.organization_id))
     except AIUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
     row.ai_state_enc = encrypt_json(plan.model_dump(mode="json"))
@@ -562,5 +577,14 @@ def finalize(session_id: str, data: FinalizeIn, db: Session = Depends(get_db), u
     report = Report(organization_id=user.organization_id, client_id=row.client_id, author_id=user.id, session_id=row.id, report_text_enc=encrypt_text(data.report_text), metadata_enc=encrypt_json({"care_minutes": data.care_minutes, "goal_ids": data.selected_goal_ids, "ai_plan": plan}))
     db.add(report); db.flush(); row.status = "finalized"
     db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="report.finalized", target_type="report", target_id=report.id))
+    submissions_created = 0
+    for fs in data.form_submissions:
+        tpl = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == fs.form_type, FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
+        if not tpl:
+            continue
+        sub = FormSubmission(organization_id=user.organization_id, client_id=row.client_id, form_template_id=tpl.id, form_type=tpl.form_type, form_title=tpl.title, author_id=user.id, data_enc=encrypt_json(fs.answers))
+        db.add(sub); db.flush()
+        audit(db, user, "form.submitted", "form_submission", sub.id, {"form_type": tpl.form_type, "session": row.id})
+        submissions_created += 1
     db.commit()
-    return {"ok": True, "report_id": report.id}
+    return {"ok": True, "report_id": report.id, "form_submissions": submissions_created}

@@ -12,7 +12,7 @@ class AIUnavailable(RuntimeError):
     pass
 
 
-def next_plan(*, narrative: str, conversation: list[dict], client_context: str, goals: list[dict], form_schema: dict, form_catalog: list[dict] | None = None) -> AIPlan:
+def next_plan(*, narrative: str, conversation: list[dict], client_context: str, goals: list[dict], form_schema: dict, fill_forms: list[dict] | None = None, form_catalog: list[dict] | None = None) -> AIPlan:
     if not settings.openai_api_key:
         raise AIUnavailable("OPENAI_API_KEY ontbreekt")
     client = OpenAI(api_key=settings.openai_api_key)
@@ -22,8 +22,9 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
         "clientcontext": client_context,
         "actieve_zorgdoelen": goals,
         "organisatie_basisformulier": form_schema,
+        "te_vullen_formulieren": fill_forms or [],
         "formulier_catalogus": form_catalog or [],
-        "opdracht": "Beoordeel de huidige volledigheid, geef exact één volgende stap volgens het schema, en signaleer via suggested_forms welke aanvullende formulieren uit de catalogus nodig zijn.",
+        "opdracht": "Vul via form_drafts de dagelijkse verplichte formulieren en de door de situatie opgeroepen formulieren uit te_vullen_formulieren in met uitsluitend feitelijke informatie. Doel is een kwalitatief, bruikbaar formulier met zo min mogelijk vragen. Stel via next_question alleen een vraag als een verplicht veld echt nodig is voor veiligheid of wettelijke verplichting en niet af te leiden valt; vraag nooit naar optionele velden. Bij een routinedienst zonder bijzonderheden: geen vragen en direct state='ready'. Zet state op 'ready' zodra alle verplichte velden 'filled' of 'unknown' zijn. Signaleer via suggested_forms overige relevante formulieren uit de catalogus.",
     }
     response = client.responses.parse(
         model=settings.openai_model,
