@@ -223,6 +223,16 @@ def test_form_mode_choice_can_be_remembered_and_changed_in_settings():
     assert "Altijd eerst vragen" in frontend
 
 
+def test_manual_form_has_no_redundant_ai_notice_or_confirmation_checkbox():
+    from pathlib import Path
+
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    manual = frontend[frontend.index("function formFillPage"):frontend.index("function formDonePage")]
+    assert "AI beslist en meldt niets" not in manual
+    assert "humanAck" not in manual
+    assert "Formulier opslaan" in manual
+
+
 def test_form_mode_is_a_validated_server_side_user_preference():
     import inspect
     from app.main import me, migrate, set_my_form_mode
