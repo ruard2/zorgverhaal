@@ -194,3 +194,12 @@ class FormImportProposal(BaseModel):
 class FormImportActivateIn(BaseModel):
     proposal: FormImportProposal
     human_review_confirmed: bool
+
+
+class ReviewRequestIn(BaseModel):
+    question: str = Field(min_length=3, max_length=4000)
+    due_at: str | None = None
+
+
+class AddendumIn(BaseModel):
+    text: str = Field(min_length=3, max_length=8000)

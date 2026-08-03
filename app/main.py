@@ -17,8 +17,8 @@ from .ai_service import AIUnavailable, next_plan, transcribe_audio
 from .config import get_settings
 from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
-from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportingSession, User
-from .schemas import AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ShiftSettingsIn, StartSessionIn
+from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
+from .schemas import AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
@@ -70,9 +70,11 @@ def migrate() -> None:
             # Gunicorn start meerdere workers tegelijk. PostgreSQL serialiseert deze
             # kleine startupmigratie zodat workers niet dezelfde DDL uitvoeren.
             conn.execute(text("SELECT pg_advisory_xact_lock(828821473)"))
+            Base.metadata.create_all(bind=conn)
             conn.execute(text("ALTER TABLE form_templates ADD COLUMN IF NOT EXISTS cadence VARCHAR(20) DEFAULT 'on_demand'"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS form_mode VARCHAR(20) DEFAULT 'ask'"))
         else:
+            Base.metadata.create_all(bind=conn)
             columns = {row[1] for row in conn.execute(text("PRAGMA table_info(form_templates)"))}
             if "cadence" not in columns:
                 conn.execute(text("ALTER TABLE form_templates ADD COLUMN cadence VARCHAR(20) DEFAULT 'on_demand'"))
@@ -83,7 +85,6 @@ def migrate() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    Base.metadata.create_all(engine)
     migrate()
     seed()
     yield
@@ -861,3 +862,118 @@ def finalize(session_id: str, data: FinalizeIn, db: Session = Depends(get_db), u
         submissions_created += 1
     db.commit()
     return {"ok": True, "report_id": report.id, "form_submissions": submissions_created}
+
+
+def review_payload(db: Session, review: ReportReview) -> dict:
+    client = db.get(Client, review.client_id)
+    assignee = db.get(User, review.assigned_to)
+    addendum = db.scalar(select(ReportAddendum).where(ReportAddendum.review_id == review.id).order_by(ReportAddendum.created_at.desc()))
+    return {
+        "id": review.id, "report_id": review.report_id, "client_id": review.client_id,
+        "client_name": decrypt_text(client.display_name_enc) if client else "Onbekende cliënt",
+        "assigned_to": review.assigned_to, "assigned_to_email": assignee.email if assignee else "",
+        "question": decrypt_text(review.question_enc), "status": review.status,
+        "due_at": review.due_at.isoformat() if review.due_at else None,
+        "created_at": review.created_at.isoformat(), "answered_at": review.answered_at.isoformat() if review.answered_at else None,
+        "addendum": decrypt_text(addendum.text_enc) if addendum else None,
+        "addendum_created_at": addendum.created_at.isoformat() if addendum else None,
+    }
+
+
+@app.get("/api/organization/workspace")
+def organization_workspace(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    reports = db.scalars(select(Report).where(Report.organization_id == user.organization_id).order_by(Report.signed_at.desc()).limit(30)).all()
+    reviews = db.scalars(select(ReportReview).where(ReportReview.organization_id == user.organization_id).order_by(ReportReview.created_at.desc()).limit(50)).all()
+    today = datetime.now(timezone.utc).date()
+    recent = []
+    for report in reports:
+        client = db.get(Client, report.client_id); author = db.get(User, report.author_id)
+        recent.append({"id": report.id, "client_id": report.client_id, "client_name": decrypt_text(client.display_name_enc) if client else "Onbekende cliënt", "author": author.email if author else "", "signed_at": report.signed_at.isoformat()})
+    open_reviews = [review_payload(db, item) for item in reviews if item.status in ("open", "answered")]
+    return {"metrics": {"reports_today": sum(item.signed_at.date() == today for item in reports), "open_questions": sum(item.status == "open" for item in reviews), "answers_to_review": sum(item.status == "answered" for item in reviews)}, "reviews": open_reviews, "recent_reports": recent}
+
+
+@app.get("/api/organization/clients/{client_id}/timeline")
+def organization_client_timeline(client_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    client = db.get(Client, client_id)
+    if not client or client.organization_id != user.organization_id: raise HTTPException(404, "Cliënt niet gevonden")
+    events = []
+    for report in db.scalars(select(Report).where(Report.client_id == client_id, Report.organization_id == user.organization_id)).all():
+        author = db.get(User, report.author_id)
+        events.append({"kind": "report", "id": report.id, "title": "Dagrapportage", "subtitle": author.email if author else "", "created_at": report.signed_at.isoformat()})
+    for submission in db.scalars(select(FormSubmission).where(FormSubmission.client_id == client_id, FormSubmission.organization_id == user.organization_id)).all():
+        author = db.get(User, submission.author_id)
+        events.append({"kind": "form", "id": submission.id, "title": submission.form_title, "subtitle": author.email if author else "", "created_at": submission.created_at.isoformat()})
+    for addendum in db.scalars(select(ReportAddendum).where(ReportAddendum.client_id == client_id, ReportAddendum.organization_id == user.organization_id)).all():
+        author = db.get(User, addendum.author_id)
+        events.append({"kind": "addendum", "id": addendum.id, "report_id": addendum.report_id, "title": "Aanvulling op rapportage", "subtitle": author.email if author else "", "created_at": addendum.created_at.isoformat()})
+    events.sort(key=lambda item: item["created_at"], reverse=True)
+    audit(db, user, "dossier.timeline_viewed", "client", client.id); db.commit()
+    return {"client": {"id": client.id, "display_name": decrypt_text(client.display_name_enc), "context": decrypt_text(client.context_enc), "goals": [decrypt_text(goal.title_enc) for goal in client.goals if goal.active]}, "events": events}
+
+
+@app.get("/api/organization/reports/{report_id}")
+def organization_report(report_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    report = db.get(Report, report_id)
+    if not report or report.organization_id != user.organization_id: raise HTTPException(404, "Rapportage niet gevonden")
+    client = db.get(Client, report.client_id); author = db.get(User, report.author_id)
+    reviews = db.scalars(select(ReportReview).where(ReportReview.report_id == report.id).order_by(ReportReview.created_at.desc())).all()
+    audit(db, user, "dossier.report_viewed", "report", report.id); db.commit()
+    metadata = decrypt_json(report.metadata_enc)
+    return {"id": report.id, "client_id": report.client_id, "client_name": decrypt_text(client.display_name_enc) if client else "", "author": author.email if author else "", "signed_at": report.signed_at.isoformat(), "report_text": decrypt_text(report.report_text_enc), "care_minutes": metadata.get("care_minutes"), "reviews": [review_payload(db, item) for item in reviews], "immutable": True}
+
+
+@app.post("/api/organization/reports/{report_id}/request-addition")
+def request_report_addition(report_id: str, data: ReviewRequestIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    report = db.get(Report, report_id)
+    if not report or report.organization_id != user.organization_id: raise HTTPException(404, "Rapportage niet gevonden")
+    due_at = None
+    if data.due_at:
+        try: due_at = datetime.fromisoformat(data.due_at.replace("Z", "+00:00"))
+        except ValueError as exc: raise HTTPException(422, "Ongeldige reactiedatum") from exc
+    review = ReportReview(organization_id=user.organization_id, report_id=report.id, client_id=report.client_id, requested_by=user.id, assigned_to=report.author_id, question_enc=encrypt_text(data.question), due_at=due_at)
+    db.add(review); db.flush(); audit(db, user, "report.addition_requested", "report_review", review.id, {"report_id": report.id, "assigned_to": report.author_id}); db.commit()
+    return review_payload(db, review)
+
+
+@app.post("/api/organization/reviews/{review_id}/close")
+def close_report_review(review_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    review = db.get(ReportReview, review_id)
+    if not review or review.organization_id != user.organization_id: raise HTTPException(404, "Verzoek niet gevonden")
+    if review.status != "answered": raise HTTPException(409, "Er is nog geen aanvulling om af te ronden")
+    review.status = "closed"; review.closed_at = datetime.now(timezone.utc)
+    audit(db, user, "report.addition_closed", "report_review", review.id); db.commit(); return {"ok": True}
+
+
+@app.get("/api/my/review-requests")
+def my_review_requests(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.scalars(select(ReportReview).where(ReportReview.organization_id == user.organization_id, ReportReview.assigned_to == user.id, ReportReview.status == "open").order_by(ReportReview.created_at.desc())).all()
+    result = []
+    for review in rows:
+        payload = review_payload(db, review); report = db.get(Report, review.report_id)
+        payload.update({"report_text": decrypt_text(report.report_text_enc), "signed_at": report.signed_at.isoformat()})
+        result.append(payload)
+    return result
+
+
+@app.post("/api/my/review-requests/{review_id}/addendum")
+def answer_review_request(review_id: str, data: AddendumIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    review = db.get(ReportReview, review_id)
+    if not review or review.organization_id != user.organization_id or review.assigned_to != user.id: raise HTTPException(404, "Verzoek niet gevonden")
+    if review.status != "open": raise HTTPException(409, "Dit verzoek is al beantwoord")
+    addendum = ReportAddendum(organization_id=user.organization_id, report_id=review.report_id, review_id=review.id, client_id=review.client_id, author_id=user.id, text_enc=encrypt_text(data.text))
+    db.add(addendum); review.status = "answered"; review.answered_at = datetime.now(timezone.utc)
+    audit(db, user, "report.addendum_submitted", "report_addendum", addendum.id, {"report_id": review.report_id, "review_id": review.id}); db.commit()
+    return {"ok": True, "addendum_id": addendum.id}
+
+
+@app.get("/api/organization/audit")
+def organization_audit(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    rows = db.scalars(select(AuditLog).where(AuditLog.organization_id == user.organization_id).order_by(AuditLog.created_at.desc()).limit(100)).all()
+    return [{"id": row.id, "action": row.action, "target_type": row.target_type, "target_id": row.target_id, "user": (db.get(User, row.user_id).email if db.get(User, row.user_id) else ""), "created_at": row.created_at.isoformat()} for row in rows]
