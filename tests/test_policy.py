@@ -208,3 +208,5 @@ def test_targeted_form_page_renders_simple_or_detailed_preparation_without_ai():
     assert "Wat moet je vertellen?" in frontend
     assert "Bekijk alle onderwerpen" in frontend
     assert "form.preparation" in frontend
+    assert "Formulier zelf invullen" in frontend
+    assert 'formFillPage(form.id)' in frontend
