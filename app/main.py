@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import re
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -708,6 +709,15 @@ def start_session(data: StartSessionIn, db: Session = Depends(get_db), user: Use
     if not client or client.organization_id != user.organization_id: raise HTTPException(404, "Cliënt niet gevonden")
     if user.role == "caregiver" and not db.scalar(select(ClientAssignment).where(ClientAssignment.client_id == client.id, ClientAssignment.user_id == user.id)):
         raise HTTPException(403, "Deze cliënt is niet aan jou toegewezen")
+    narrative_text = data.narrative.casefold()
+    selected_name = decrypt_text(client.display_name_enc)
+    selected_first = selected_name.split()[0].casefold()
+    if not re.search(rf"\b{re.escape(selected_first)}\b", narrative_text):
+        for other in db.scalars(select(Client).where(Client.organization_id == user.organization_id, Client.id != client.id, Client.active.is_(True))).all():
+            other_name = decrypt_text(other.display_name_enc)
+            other_first = other_name.split()[0].casefold()
+            if len(other_first) >= 3 and re.search(rf"\b{re.escape(other_first)}\b", narrative_text):
+                raise HTTPException(409, f"Je koos {selected_name}, maar de rapportage noemt {other_name}. Controleer eerst de cliënt.")
     row = ReportingSession(organization_id=user.organization_id, client_id=client.id, user_id=user.id, narrative_enc=encrypt_text(data.narrative), conversation_enc=encrypt_json([]), ai_state_enc=encrypt_json({}))
     db.add(row); db.flush()
     plan = run_ai(db, row, user)
@@ -744,7 +754,8 @@ def answer(session_id: str, data: AnswerIn, db: Session = Depends(get_db), user:
     if received_ids != open_ids or len(data.answers) != len(open_ids):
         raise HTTPException(422, "Beantwoord alle open vragen precies één keer")
     conversation = decrypt_json(row.conversation_enc)
-    conversation.extend({"question_id": answer.question_id, "answer": answer.value} for answer in data.answers)
+    question_by_id = {question.get("id"): question for question in questions}
+    conversation.extend({"question_id": answer.question_id, "field_ids": question_by_id.get(answer.question_id, {}).get("field_ids", []), "answer": answer.value} for answer in data.answers)
     row.conversation_enc = encrypt_json(conversation)
     return {"session_id": row.id, "plan": run_ai(db, row, user)}
 

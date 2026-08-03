@@ -71,6 +71,29 @@ def test_registration_fields_are_deterministic_and_not_questions():
     assert result.state == "ready"
 
 
+def test_content_fields_are_never_overwritten_as_registration_fields():
+    plan = minimal_plan(
+        form_drafts=[FormDraft(form_type="daily", title="Dagrapportage", fields=[
+            FilledField(field_id="client_statement", label="Letterlijke cliëntuitspraak", value="Ik wil een ijsje", status="filled"),
+            FilledField(field_id="changes", label="Veranderingen sinds vorige dienst", value="Henk was rustiger", status="filled"),
+            FilledField(field_id="client_response", label="Reactie en effect", value="Henk trok later bij", status="filled"),
+        ])],
+    )
+    result = apply_deterministic_fields(plan, {"client_name": "Marieke de Boer", "current_shift": "Dagdienst"})
+    assert [field.value for field in result.form_drafts[0].fields] == ["Ik wil een ijsje", "Henk was rustiger", "Henk trok later bij"]
+
+
+def test_required_unknown_fields_generate_questions():
+    plan = minimal_plan(
+        state="ready",
+        form_drafts=[FormDraft(form_type="shift_handover", title="Dienstoverdracht", fields=[FilledField(field_id="changes", label="Belangrijke veranderingen", value="Niet beschreven.", status="unknown")])],
+    )
+    result = apply_deterministic_fields(plan, {}, required_fields={"shift_handover": {"changes": "Belangrijke veranderingen"}})
+    assert result.state == "ask"
+    assert result.form_drafts[0].fields[0].status == "needs_input"
+    assert result.clarification_questions[0].field_ids == ["changes"]
+
+
 def test_explicit_routine_closes_non_factual_required_gaps():
     plan = minimal_plan(
         clarification_questions=[ClarificationQuestion(id="support", field_ids=["support_given"], question="Welke ondersteuning?", why="Verplicht")],

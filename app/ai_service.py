@@ -10,7 +10,7 @@ from openai import OpenAI
 
 from .config import get_settings
 from .legal_policy import SYSTEM_PROMPT
-from .schemas import AIPlan
+from .schemas import AIPlan, ClarificationQuestion
 
 
 settings = get_settings()
@@ -27,22 +27,6 @@ class AIUnavailable(RuntimeError):
 class AIResult:
     plan: AIPlan
     telemetry: dict[str, Any]
-
-
-META_FIELD_HINTS = {
-    "client": ("client_name",),
-    "cliënt": ("client_name",),
-    "datum": ("datetime",),
-    "tijd": ("datetime",),
-    "medewerker": ("author",),
-    "auteur": ("author",),
-    "functie": ("author_role",),
-    "locatie": ("location",),
-    "huidige dienst": ("current_shift",),
-    "dienst": ("current_shift",),
-    "ontvanger": ("next_shift",),
-    "volgende dienst": ("next_shift",),
-}
 
 
 def choose_model(narrative: str, user_id: str = "anonymous") -> tuple[str, str]:
@@ -82,9 +66,8 @@ def transcribe_audio(content: bytes, *, file_name: str, mime_type: str, user_id:
 
 
 def _known_registration_value(field_id: str, label: str, context: dict) -> str | None:
-    haystack = f"{field_id} {label}".casefold()
     normalized_id = field_id.casefold()
-    if normalized_id in {"client_id", "client_reference"}:
+    if normalized_id in {"client_id", "client_reference", "client_name"}:
         return str(context.get("client_reference") or context.get("client_name") or "")
     if normalized_id in {"event_datetime", "datetime", "date", "time"}:
         return str(context.get("datetime") or "")
@@ -96,12 +79,6 @@ def _known_registration_value(field_id: str, label: str, context: dict) -> str |
         return str(context.get("next_shift") or "")
     if normalized_id in {"time_spent", "care_minutes", "review_confirmed", "human_confirmation"}:
         return "Wordt bij de eindcontrole ingevuld"
-    for hint, keys in META_FIELD_HINTS.items():
-        if hint in haystack:
-            for key in keys:
-                value = context.get(key)
-                if value:
-                    return str(value)
     return None
 
 
@@ -141,7 +118,9 @@ def _consolidate_questions(plan: AIPlan, maximum: int = 4) -> None:
     plan.clarification_questions = kept + [combined]
 
 
-def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrative: str = "") -> AIPlan:
+def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrative: str = "", required_fields: dict[str, dict[str, str]] | None = None, confirmed_unknown_ids: set[str] | None = None) -> AIPlan:
+    required_fields = required_fields or {}
+    confirmed_unknown_ids = confirmed_unknown_ids or set()
     app_managed_ids: set[str] = set()
     for draft in plan.form_drafts:
         for field in draft.fields:
@@ -150,6 +129,20 @@ def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrati
                 app_managed_ids.add(field.field_id)
                 field.value = value
                 field.status = "filled"
+        draft.complete = all(field.status != "needs_input" for field in draft.fields)
+
+    existing_question_fields = {field_id for question in plan.clarification_questions for field_id in question.field_ids}
+    for draft in plan.form_drafts:
+        required = required_fields.get(draft.form_type, {})
+        for field in draft.fields:
+            if field.field_id not in required or field.field_id in app_managed_ids or field.field_id in confirmed_unknown_ids:
+                continue
+            if field.status == "unknown" or not field.value.strip():
+                field.status = "needs_input"
+                field.value = ""
+                if field.field_id not in existing_question_fields:
+                    plan.clarification_questions.append(ClarificationQuestion(id=f"required_{draft.form_type}_{field.field_id}", field_ids=[field.field_id], question=f"Wat moet worden vastgelegd bij ‘{field.label}’ ?", why=f"Dit is een verplicht veld in {draft.title}."))
+                    existing_question_fields.add(field.field_id)
         draft.complete = all(field.status != "needs_input" for field in draft.fields)
 
     if app_managed_ids:
@@ -176,6 +169,8 @@ def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrati
         plan.why_this_question = None
         plan.answer_options = []
     elif plan.clarification_questions:
+        if plan.state != "urgent":
+            plan.state = "ask"
         first = plan.clarification_questions[0]
         plan.next_question = first.question
         plan.why_this_question = first.why
@@ -257,7 +252,9 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
     if not response.output_parsed:
         raise AIUnavailable("De AI gaf geen bruikbaar concept. Probeer het opnieuw.", code="invalid_output")
 
-    plan = apply_deterministic_fields(response.output_parsed, registration_context, narrative)
+    required_fields = {form.get("form_type", ""): {field.get("id", ""): field.get("label", field.get("id", "")) for section in form.get("sections", []) for field in section.get("fields", []) if field.get("required")} for form in (fill_forms or [])}
+    confirmed_unknown_ids = {field_id for item in conversation if str(item.get("answer", "")).casefold().strip() == "niet bekend" for field_id in item.get("field_ids", [])}
+    plan = apply_deterministic_fields(response.output_parsed, registration_context, narrative, required_fields, confirmed_unknown_ids)
     telemetry = {
         "model": model,
         "route": route,
