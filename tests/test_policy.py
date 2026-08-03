@@ -30,10 +30,11 @@ def test_prompt_is_lean_and_has_one_question_strategy():
 
 def test_all_reports_use_configured_light_route_and_never_self_escalate_to_sol():
     settings = get_settings()
-    assert choose_model("De dienst verliep rustig")[0] == settings.openai_report_model
-    assert choose_model("Er was een medicatiefout")[0] == settings.openai_report_model
-    assert choose_model("Cliënt was ernstig benauwd en reageerde nauwelijks")[0] == settings.openai_report_model
-    assert choose_model("Cliënt is vermist")[1] == "reporting"
+    allowed = {settings.openai_report_model, settings.openai_report_experiment_model}
+    assert choose_model("De dienst verliep rustig", "user-1")[0] in allowed
+    assert choose_model("Er was een medicatiefout", "user-1")[0] in allowed
+    assert choose_model("Cliënt was ernstig benauwd en reageerde nauwelijks", "user-1")[0] in allowed
+    assert choose_model("Cliënt is vermist", "user-1")[1] in {"reporting_control", "reporting_experiment"}
 
 
 def test_daily_reporting_never_sends_the_extended_legal_prompt():
@@ -47,10 +48,15 @@ def test_daily_reporting_never_sends_the_extended_legal_prompt():
 
 def test_normal_pain_medication_stays_on_the_fast_routine_route():
     settings = get_settings()
-    model, route = choose_model("Cliënt had pijn en kreeg volgens afspraak pijnmedicatie")
-    assert model == settings.openai_report_model
-    assert route == "reporting"
-    assert choose_model("De medicatie was vergeten")[0] == settings.openai_report_model
+    model, route = choose_model("Cliënt had pijn en kreeg volgens afspraak pijnmedicatie", "user-2")
+    assert model in {settings.openai_report_model, settings.openai_report_experiment_model}
+    assert route in {"reporting_control", "reporting_experiment"}
+    assert choose_model("De medicatie was vergeten", "user-2")[0] in {settings.openai_report_model, settings.openai_report_experiment_model}
+
+
+def test_model_experiment_assignment_is_stable_for_the_same_report():
+    first = choose_model("Dezelfde rapportage", "dezelfde-gebruiker")
+    assert choose_model("Dezelfde rapportage", "dezelfde-gebruiker") == first
 
 
 def test_registration_fields_are_deterministic_and_not_questions():
@@ -87,6 +93,8 @@ def test_frontend_uses_structured_answers_and_readonly_preview():
     assert 'api("/api/transcribe"' in frontend
     assert "MediaRecorder" in frontend
     assert "SpeechRecognition" not in frontend
+    assert "DIRECT CONCEPT · GEWONE CODE" in frontend
+    assert "submitNarrative(narrative)" in frontend
 
 
 def test_only_relevant_incident_forms_are_preselected():

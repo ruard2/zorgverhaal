@@ -45,10 +45,14 @@ META_FIELD_HINTS = {
 }
 
 
-def choose_model(narrative: str) -> tuple[str, str]:
+def choose_model(narrative: str, user_id: str = "anonymous") -> tuple[str, str]:
     # Rapportages blijven op het lichte model. De AI mag risico's en extra
     # formulieren signaleren, maar schaalt zichzelf niet op naar Sol.
-    return settings.openai_report_model, "reporting"
+    percentage = max(0, min(100, settings.openai_report_experiment_percent))
+    bucket = int(hashlib.sha256(f"{user_id}:{narrative}".encode("utf-8")).hexdigest()[:8], 16) % 100
+    if settings.openai_report_experiment_model and bucket < percentage:
+        return settings.openai_report_experiment_model, "reporting_experiment"
+    return settings.openai_report_model, "reporting_control"
 
 
 def privacy_safe_identifier(user_id: str) -> str:
@@ -201,7 +205,7 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
         raise AIUnavailable("AI is niet geconfigureerd", code="not_configured")
 
     registration_context = registration_context or {}
-    model, route = choose_model(narrative)
+    model, route = choose_model(narrative, user_id)
     payload = {
         "bronverhaal": narrative,
         "registratie_context": registration_context,

@@ -782,7 +782,9 @@ def finalize(session_id: str, data: FinalizeIn, db: Session = Depends(get_db), u
         prepared_submissions.append((template, answers))
     report = Report(organization_id=user.organization_id, client_id=row.client_id, author_id=user.id, session_id=row.id, report_text_enc=encrypt_text(data.report_text), metadata_enc=encrypt_json({"care_minutes": data.care_minutes, "goal_ids": data.selected_goal_ids, "ai_plan": plan}))
     db.add(report); db.flush(); row.status = "finalized"
-    db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="report.finalized", target_type="report", target_id=report.id))
+    draft_fields = {(draft.get("form_type"), field.get("field_id")): str(field.get("value") or "").strip() for draft in plan.get("form_drafts", []) for field in draft.get("fields", [])}
+    edited_fields = sum(1 for submission in data.form_submissions for field_id, value in submission.answers.items() if str(value or "").strip() != draft_fields.get((submission.form_type, field_id), ""))
+    db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="report.finalized", target_type="report", target_id=report.id, details=json.dumps({"session": row.id, "report_edited": data.report_text.strip() != str(plan.get("draft_report") or "").strip(), "edited_fields": edited_fields}, ensure_ascii=False)))
     submissions_created = 0
     for tpl, final_answers in prepared_submissions:
         sub = FormSubmission(organization_id=user.organization_id, client_id=row.client_id, form_template_id=tpl.id, form_type=tpl.form_type, form_title=tpl.title, author_id=user.id, data_enc=encrypt_json(final_answers))

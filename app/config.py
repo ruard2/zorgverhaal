@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-5.6-terra"
     openai_report_model: str = "gpt-5.6-terra"
+    openai_report_experiment_model: str = "gpt-5.6-luna"
+    openai_report_experiment_percent: int = 50
     openai_complex_model: str = "gpt-5.6-sol"
     openai_transcription_model: str = "gpt-4o-mini-transcribe"
     openai_reasoning_effort: str = "low"
