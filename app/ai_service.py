@@ -129,6 +129,9 @@ def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrati
                 app_managed_ids.add(field.field_id)
                 field.value = value
                 field.status = "filled"
+            if field.field_id == "goal_links":
+                field.value = ", ".join(goal.title for goal in plan.goal_suggestions)
+                field.status = "filled" if field.value else "unknown"
         draft.complete = all(field.status != "needs_input" for field in draft.fields)
 
     existing_question_fields = {field_id for question in plan.clarification_questions for field_id in question.field_ids}
@@ -137,11 +140,16 @@ def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrati
         for field in draft.fields:
             if field.field_id not in required or field.field_id in app_managed_ids or field.field_id in confirmed_unknown_ids:
                 continue
-            if field.status == "unknown" or not field.value.strip():
+            normalized_value = field.value.casefold().strip()
+            placeholder_value = any(marker in normalized_value for marker in ("niet beschreven", "niet vermeld", "onbekend", "niet duidelijk", "niet vastgesteld"))
+            if field.status == "unknown" or not normalized_value or placeholder_value:
                 field.status = "needs_input"
                 field.value = ""
                 if field.field_id not in existing_question_fields:
-                    plan.clarification_questions.append(ClarificationQuestion(id=f"required_{draft.form_type}_{field.field_id}", field_ids=[field.field_id], question=f"Wat moet worden vastgelegd bij ‘{field.label}’ ?", why=f"Dit is een verplicht veld in {draft.title}."))
+                    question = f"Wat moet worden vastgelegd bij ‘{field.label}’?"
+                    if field.field_id == "client_response" or "reactie en effect" in field.label.casefold():
+                        question = "Wat merkte je bij de cliënt na de geboden ondersteuning of medicatie?"
+                    plan.clarification_questions.append(ClarificationQuestion(id=f"required_{draft.form_type}_{field.field_id}", field_ids=[field.field_id], question=question, why=f"Dit is een verplicht veld in {draft.title}."))
                     existing_question_fields.add(field.field_id)
         draft.complete = all(field.status != "needs_input" for field in draft.fields)
 

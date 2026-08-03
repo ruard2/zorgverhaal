@@ -94,6 +94,17 @@ def test_required_unknown_fields_generate_questions():
     assert result.clarification_questions[0].field_ids == ["changes"]
 
 
+def test_bot_placeholder_in_required_effect_field_becomes_a_human_question():
+    plan = minimal_plan(
+        state="ready",
+        form_drafts=[FormDraft(form_type="daily_report", title="Dagrapportage", fields=[FilledField(field_id="client_response", label="Reactie en effect", value="Effect van de paracetamol is niet beschreven.", status="filled")])],
+    )
+    result = apply_deterministic_fields(plan, {}, required_fields={"daily_report": {"client_response": "Reactie en effect"}})
+    assert result.state == "ask"
+    assert result.form_drafts[0].fields[0].value == ""
+    assert "Wat merkte je" in result.clarification_questions[0].question
+
+
 def test_explicit_routine_closes_non_factual_required_gaps():
     plan = minimal_plan(
         clarification_questions=[ClarificationQuestion(id="support", field_ids=["support_given"], question="Welke ondersteuning?", why="Verplicht")],
@@ -145,3 +156,5 @@ def test_employee_selects_suggested_forms_without_an_ai_call():
     assert "data-suggest-form" in frontend
     assert "selectedSuggestedForms" in frontend
     assert "formFillPage(button.dataset.formId)" in frontend
+    assert "earlyMinutes" in frontend
+    assert "appManagedField" in frontend
