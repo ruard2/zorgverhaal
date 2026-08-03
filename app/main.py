@@ -526,8 +526,17 @@ def run_ai(db: Session, row: ReportingSession, user: User):
     goals = [{"goal_id": g.id, "title": decrypt_text(g.title_enc), "description": decrypt_text(g.description_enc)} for g in client.goals if g.active]
     form = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == row.organization_id, FormTemplate.form_type == "daily_care", FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
     form_schema = decrypt_json(form.schema_enc) if form else DAILY_FORM_SCHEMA
+    org = db.get(Organization, row.organization_id)
+    registration_context = {
+        "client_name": decrypt_text(client.display_name_enc),
+        "client_reference": client.id,
+        "datetime": datetime.now(timezone.utc).isoformat(timespec="minutes"),
+        "author": user.email,
+        "author_role": user.role,
+        "location": org.name if org else "",
+    }
     try:
-        plan = next_plan(narrative=decrypt_text(row.narrative_enc), conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=forms_to_fill(db, row.organization_id), form_catalog=build_form_catalog(db, row.organization_id))
+        plan = next_plan(narrative=decrypt_text(row.narrative_enc), conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=forms_to_fill(db, row.organization_id), form_catalog=build_form_catalog(db, row.organization_id), registration_context=registration_context)
     except AIUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
     row.ai_state_enc = encrypt_json(plan.model_dump(mode="json"))
