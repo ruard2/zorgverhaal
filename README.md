@@ -17,6 +17,7 @@ Een organisatiebeheerder kan zonder apart account de medewerkersdemo openen. All
 - GPT-5.6 Terra zonder reasoning voor snelle dagelijkse extractie; Sol wordt alleen gebruikt voor eenmalige formulierimport.
 - Vaste registratiegegevens en formulierselectie worden door de applicatie afgehandeld; alleen resterende vrije tekst gaat naar de rapportage-AI.
 - De medewerker ziet direct een lokaal concept met bronnotitie en bekende dienstgegevens terwijl de inhoudelijke AI-call loopt.
+- De medewerkershomepage groepeert open dagtaken, toegewezen cliënten en alle actieve formulieren. Een bewust gekozen formulier gebruikt dezelfde cliëntkeuze, vrije invoer, AI-verheldering en menselijke eindcontrole, waarbij alleen dat formulier naar de AI gaat.
 - Dagrapportages worden stabiel verdeeld over Terra (controle) en Luna (experiment); audittelemetrie maakt vergelijking van latency, tokens en kwaliteit mogelijk.
 - De dagelijkse rapportage verstuurt nooit de uitgebreide formulier-specifieke juridische prompt. Een gekozen aanvullend formulier wordt in de huidige flow handmatig ingevuld, dus daarvoor is geen extra AI-call nodig. API-responses worden niet bij OpenAI opgeslagen (`store=false`).
 - Relevante incident-, medicatie-, Wzd- en crisisformulieren worden direct in dezelfde call als concept ingevuld.

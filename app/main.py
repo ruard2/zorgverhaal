@@ -677,8 +677,15 @@ def owned_session(db: Session, session_id: str, user: User) -> ReportingSession:
 def run_ai(db: Session, row: ReportingSession, user: User):
     client = db.get(Client, row.client_id)
     goals = [{"goal_id": g.id, "title": decrypt_text(g.title_enc), "description": decrypt_text(g.description_enc)} for g in client.goals if g.active]
+    conversation = decrypt_json(row.conversation_enc)
+    target_context = next((item for item in conversation if item.get("kind") == "target_form"), None)
+    target_form = db.get(FormTemplate, target_context.get("form_id")) if target_context else None
+    if target_form and (target_form.organization_id != row.organization_id or target_form.status != "active"):
+        raise HTTPException(409, "Het gekozen formulier is niet meer actief")
     form = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == row.organization_id, FormTemplate.form_type == "daily_care", FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
-    form_schema = decrypt_json(form.schema_enc) if form else DAILY_FORM_SCHEMA
+    form_schema = {} if target_form else (decrypt_json(form.schema_enc) if form else DAILY_FORM_SCHEMA)
+    fill_forms = [compact_form(target_form)] if target_form else forms_to_fill(db, row.organization_id, decrypt_text(row.narrative_enc))
+    form_catalog = [] if target_form else build_form_catalog(db, row.organization_id)
     org = db.get(Organization, row.organization_id)
     registration_context = {
         "client_name": decrypt_text(client.display_name_enc),
@@ -691,7 +698,7 @@ def run_ai(db: Session, row: ReportingSession, user: User):
     }
     try:
         narrative = decrypt_text(row.narrative_enc)
-        result = next_plan(narrative=narrative, conversation=decrypt_json(row.conversation_enc), client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=forms_to_fill(db, row.organization_id, narrative), form_catalog=build_form_catalog(db, row.organization_id), registration_context=registration_context, user_id=user.id)
+        result = next_plan(narrative=narrative, conversation=[item for item in conversation if item.get("kind") != "target_form"], client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=fill_forms, form_catalog=form_catalog, registration_context=registration_context, user_id=user.id)
     except AIUnavailable as exc:
         db.rollback()
         raise HTTPException(503, {"message": str(exc), "code": exc.code}) from exc
@@ -718,7 +725,13 @@ def start_session(data: StartSessionIn, db: Session = Depends(get_db), user: Use
             other_first = other_name.split()[0].casefold()
             if len(other_first) >= 3 and re.search(rf"\b{re.escape(other_first)}\b", narrative_text):
                 raise HTTPException(409, f"Je koos {selected_name}, maar de rapportage noemt {other_name}. Controleer eerst de cliënt.")
-    row = ReportingSession(organization_id=user.organization_id, client_id=client.id, user_id=user.id, narrative_enc=encrypt_text(data.narrative), conversation_enc=encrypt_json([]), ai_state_enc=encrypt_json({}))
+    target_form = None
+    if data.form_id:
+        target_form = db.get(FormTemplate, data.form_id)
+        if not target_form or target_form.organization_id != user.organization_id or target_form.status != "active" or target_form.cadence == "disabled":
+            raise HTTPException(404, "Formulier niet gevonden")
+    conversation = [{"kind": "target_form", "form_id": target_form.id}] if target_form else []
+    row = ReportingSession(organization_id=user.organization_id, client_id=client.id, user_id=user.id, narrative_enc=encrypt_text(data.narrative), conversation_enc=encrypt_json(conversation), ai_state_enc=encrypt_json({}))
     db.add(row); db.flush()
     plan = run_ai(db, row, user)
     return {"session_id": row.id, "plan": plan}

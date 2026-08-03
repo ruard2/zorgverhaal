@@ -158,3 +158,27 @@ def test_employee_selects_suggested_forms_without_an_ai_call():
     assert "formFillPage(button.dataset.formId)" in frontend
     assert "earlyMinutes" in frontend
     assert "appManagedField" in frontend
+
+
+def test_employee_home_and_targeted_ai_form_flow_are_available():
+    from pathlib import Path
+
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "Nog te doen voor deze dag" in frontend
+    assert "Cliënten onder je hoede" in frontend
+    assert "Alle beschikbare formulieren" in frontend
+    assert "chooseClientForForm" in frontend
+    assert "targetedNarrativePage" in frontend
+    assert "form_id:state.targetForm?.id||null" in frontend
+
+
+def test_targeted_session_sends_only_the_employee_selected_form():
+    import inspect
+    from app.main import run_ai, start_session
+
+    run_source = inspect.getsource(run_ai)
+    start_source = inspect.getsource(start_session)
+    assert 'item.get("kind") == "target_form"' in run_source
+    assert "[compact_form(target_form)]" in run_source
+    assert "form_catalog = [] if target_form" in run_source
+    assert '"kind": "target_form"' in start_source

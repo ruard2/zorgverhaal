@@ -86,6 +86,7 @@ class ClientIn(BaseModel):
 class StartSessionIn(BaseModel):
     client_id: str
     narrative: str = Field(min_length=3, max_length=12000)
+    form_id: str | None = None
 
 
 class ClarificationAnswer(BaseModel):
