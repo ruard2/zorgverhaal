@@ -13,7 +13,7 @@ async function api(path, options={}) {
   return data;
 }
 
-function shell(content, title="ZorgVerhaal AI") {
+function shell(content, title="Demo-Zorg") {
   window.scrollTo({top:0,left:0,behavior:"instant"});
   app.innerHTML = `<div class="ribbon">FICTIEVE DEMO · GEBRUIK GEEN ECHTE CLIËNTGEGEVENS</div><main><header><b class="logo">Z</b><strong>${esc(title)}</strong><button class="headlink" id="home">⌂</button></header><div class="error-slot"></div>${content}</main>`;
   document.querySelector("#home")?.addEventListener("click", routeHome);
@@ -34,6 +34,8 @@ function busy(button, label="Even wachten…") { button.disabled=true; button.da
 async function boot() {
   const joinToken = new URLSearchParams(location.search).get("join");
   if (joinToken) return joinPage(joinToken);
+  const employerJoinToken = new URLSearchParams(location.search).get("employer_join");
+  if (employerJoinToken) return employerJoinPage(employerJoinToken);
   try {
     state.me = await api("/api/me");
     state.dashboard = await api("/api/dashboard");
@@ -57,6 +59,21 @@ async function joinPage(token) {
   } catch(x) { shell(`<section class="pad"><h1>Link niet bruikbaar</h1><p class="lead">${esc(x.message)}</p></section>`); }
 }
 
+async function employerJoinPage(token) {
+  try {
+    const info=await api(`/api/employer-join/${token}`);
+    shell(`<section class="pad login joincard"><p class="eyebrow">COMMUNITYTOOLS NODIGT U UIT</p><h1>Start uw Demo-Zorg omgeving</h1><p class="lead">Welkom${info.contact_name?`, ${esc(info.contact_name)}`:""}. Activeer het werkgeversaccount voor ${esc(info.organization_name)}. Daarna kunt u direct fictieve demo-inhoud toevoegen.</p><div class="identitycard"><span>${initials(info.organization_name)}</span><div><b>${esc(info.organization_name)}</b><small>Werkgeversportaal Demo-Zorg</small></div></div><form id="employerJoin"><label>Uw naam<input name="name" value="${esc(info.contact_name||"")}" required></label><label>Werk-e-mailadres<input name="email" type="email" value="${esc(info.intended_email||"")}" ${info.intended_email?"readonly":""} required></label><label>Kies een wachtwoord<input name="password" type="password" minlength="12" autocomplete="new-password" required><small>Minimaal 12 tekens.</small></label><button>Werkgeversaccount activeren</button></form><p class="privacy">De uitnodiging is persoonlijk en eenmalig te gebruiken.</p></section>`,"Demo-Zorg");
+    document.querySelector("#home").hidden=true;
+    document.querySelector("#employerJoin").onsubmit=async event=>{event.preventDefault();const button=event.submitter;busy(button,"Omgeving aanmaken…");try{await api(`/api/employer-join/${token}`,{method:"POST",body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});history.replaceState({},"","/");await boot()}catch(error){showError(error);button.disabled=false;button.textContent=button.dataset.old}};
+  } catch(error) { shell(`<section class="pad"><h1>Uitnodiging niet bruikbaar</h1><p class="lead">${esc(error.message)}</p></section>`,"Demo-Zorg"); }
+}
+
+function inviteEmployerPage(){
+  shell(`<section class="pad"><button class="back" id="back">‹</button><p class="eyebrow">PERSOONLIJKE WERKGEVERSDEMO</p><h1>Nodig een werkgever uit</h1><p class="lead">Demo-Zorg maakt een tijdelijke activatielink en een persoonlijke CommunityTools-brief met dezelfde klikbare link.</p><form id="employerInvite"><label>Organisatienaam<input name="organization_name" required placeholder="Naam zorgorganisatie"></label><label>Naam contactpersoon<input name="contact_name" required placeholder="Voor- en achternaam"></label><label>Werk-e-mailadres <small>(optioneel vastzetten)</small><input name="email" type="email" placeholder="naam@organisatie.nl"></label><button>Uitnodiging en brief maken</button></form></section>`,"Demo-Zorg · Eigenaar");
+  document.querySelector("#back").onclick=platformDashboard;
+  document.querySelector("#employerInvite").onsubmit=async event=>{event.preventDefault();const values=Object.fromEntries(new FormData(event.target));values.email=values.email||null;const button=event.submitter;busy(button,"Uitnodiging maken…");try{const result=await api("/api/platform/employer-invitations",{method:"POST",body:JSON.stringify(values)});const link=`${location.origin}/?employer_join=${result.token}`;const letter=`/api/platform/employer-invitations/${result.id}/letter?token=${encodeURIComponent(result.token)}`;shell(`<section class="pad"><button class="back" id="back">‹</button><div class="successmark">✓</div><p class="eyebrow">WERKGEVERSUITNODIGING KLAAR</p><h1>${esc(result.organization_name)} kan starten</h1><p class="lead">Stuur de brief of kopieer de persoonlijke link. De werkgever maakt zelf het account en de demo-organisatie aan.</p><label>Persoonlijke activatielink<textarea id="employerLink" readonly>${esc(link)}</textarea></label><button id="downloadEmployerLetter">Download persoonlijke brief</button><button class="secondary" id="copyEmployerLink">Link kopiëren</button><div class="notice"><b>Zeven dagen geldig · één keer te gebruiken</b><p>Na activatie kan de werkgever via Beheer → Demo-inhoud de fictieve demonstratie zelf vullen.</p></div></section>`,"Demo-Zorg · Eigenaar");document.querySelector("#back").onclick=platformDashboard;document.querySelector("#downloadEmployerLetter").onclick=()=>{location.href=letter};document.querySelector("#copyEmployerLink").onclick=async()=>{await navigator.clipboard.writeText(link);document.querySelector("#copyEmployerLink").textContent="Gekopieerd ✓"}}catch(error){showError(error);button.disabled=false;button.textContent=button.dataset.old}};
+}
+
 function routeHome() {
   if (state.preview || state.me.role === "caregiver") return workerDashboard();
   if (state.me.role === "platform_admin") return platformDashboard();
@@ -66,7 +83,8 @@ function routeHome() {
 async function platformDashboard() {
   try {
     const [orgs,docs]=await Promise.all([api("/api/platform/organizations"),api("/api/platform/documents")]);
-    shell(`<section class="pad"><p class="eyebrow">PRIVÉ PLATFORMBEHEER</p><h1>Goedemorgen, Ruard</h1><div class="metrics"><article><b>${orgs.length}</b><span>Zorgaanbieders</span></article><article class="warn"><b>${docs.filter(d=>["uploaded","reviewing"].includes(d.status)).length}</b><span>Documenten vragen actie</span></article></div><button id="newOrg">＋ Zorgaanbieder toevoegen</button><h2>Document-inbox</h2>${docs.length?docs.map(documentCard).join(""):`<p class="muted">Nog geen documenten geüpload.</p>`}<h2>Organisaties</h2>${orgs.map(o=>`<article class="listcard"><div><b>${esc(o.name)}</b><small>${o.staff} gebruikers · ${o.documents} documenten</small></div><span>›</span></article>`).join("")||`<p class="muted">Maak de eerste demo-organisatie aan.</p>`}<button class="secondary" id="logout">Uitloggen</button></section>`,"Platformadmin");
+    shell(`<section class="pad"><p class="eyebrow">COMMUNITYTOOLS · PLATFORMBEHEER</p><h1>Goedemorgen, Ruard</h1><div class="metrics"><article><b>${orgs.length}</b><span>Zorgaanbieders</span></article><article class="warn"><b>${docs.filter(d=>["uploaded","reviewing"].includes(d.status)).length}</b><span>Documenten vragen actie</span></article></div><button id="inviteEmployer">＋ Nodig werkgever uit</button><button class="secondary" id="newOrg">Zorgaanbieder direct aanmaken</button><h2>Document-inbox</h2>${docs.length?docs.map(documentCard).join(""):`<p class="muted">Nog geen documenten geüpload.</p>`}<h2>Organisaties</h2>${orgs.map(o=>`<article class="listcard"><div><b>${esc(o.name)}</b><small>${o.staff} gebruikers · ${o.documents} documenten</small></div><span>›</span></article>`).join("")||`<p class="muted">Nodig de eerste demo-organisatie uit.</p>`}<button class="secondary" id="logout">Uitloggen</button></section>`,"Demo-Zorg · Eigenaar");
+    document.querySelector("#inviteEmployer").onclick=inviteEmployerPage;
     document.querySelector("#newOrg").onclick=newOrganization;
     document.querySelector("#logout").onclick=logout;
     document.querySelectorAll("[data-doc-status]").forEach(b=>b.onclick=()=>updateDocument(b.dataset.docStatus,b.dataset.id));

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,8 +17,9 @@ from .ai_service import AIUnavailable, apply_simple_answers_without_ai, next_pla
 from .config import get_settings
 from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
-from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
-from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
+from .employer_invitation_document import build_employer_invitation_document
+from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, EmployerInvitation, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
+from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
@@ -126,7 +127,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="ZorgVerhaal AI", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Demo-Zorg", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in settings.allowed_origins.split(",")], allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -217,6 +218,71 @@ def create_organization(data: OrganizationIn, db: Session = Depends(get_db), use
     audit(db, user, "organization.created", "organization", org.id, {"admin_email": data.admin_email.lower()})
     db.commit()
     return {"id": org.id, "name": org.name}
+
+
+@app.post("/api/platform/employer-invitations")
+def create_employer_invitation(data: EmployerInvitationIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "platform_admin")
+    if data.email and db.scalar(select(User).where(User.email == str(data.email).lower())):
+        raise HTTPException(409, "Dit e-mailadres bestaat al")
+    token = secrets.token_urlsafe(32)
+    invitation = EmployerInvitation(
+        created_by=user.id,
+        token_hash=hashlib.sha256(token.encode()).hexdigest(),
+        organization_name=data.organization_name.strip(),
+        contact_name=data.contact_name.strip(),
+        intended_email=str(data.email or "").lower(),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+    db.add(invitation); db.flush()
+    audit(db, user, "employer_invitation.created", "employer_invitation", invitation.id, {"organization_name": invitation.organization_name})
+    db.commit()
+    return {"id": invitation.id, "token": token, "organization_name": invitation.organization_name, "contact_name": invitation.contact_name, "expires_at": invitation.expires_at.isoformat()}
+
+
+@app.get("/api/platform/employer-invitations/{invitation_id}/letter")
+def employer_invitation_letter(invitation_id: str, token: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "platform_admin")
+    invitation = db.get(EmployerInvitation, invitation_id)
+    if not invitation or invitation.created_by != user.id or invitation.token_hash != hashlib.sha256(token.encode()).hexdigest():
+        raise HTTPException(404, "Uitnodiging niet gevonden")
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",", 1)[0].strip()
+    forwarded_host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc)).split(",", 1)[0].strip()
+    base_url = f"{forwarded_proto}://{forwarded_host}".rstrip("/")
+    invite_url = f"{base_url}/?employer_join={token}"
+    content = build_employer_invitation_document(invitation.organization_name, invitation.contact_name, invite_url)
+    safe_name = re.sub(r"[^A-Za-z0-9_-]+", "-", invitation.organization_name).strip("-") or "werkgever"
+    return Response(content=content, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={"Content-Disposition": f'attachment; filename="Demo-Zorg-uitnodiging-{safe_name}.docx"'})
+
+
+@app.get("/api/employer-join/{token}")
+def employer_invitation_info(token: str, db: Session = Depends(get_db)):
+    invitation = db.scalar(select(EmployerInvitation).where(EmployerInvitation.token_hash == hashlib.sha256(token.encode()).hexdigest()))
+    if not invitation or invitation.revoked or invitation.used_at or invitation_expired(invitation):
+        raise HTTPException(410, "Uitnodiging is verlopen, gebruikt of ingetrokken")
+    return {"organization_name": invitation.organization_name, "contact_name": invitation.contact_name, "intended_email": invitation.intended_email}
+
+
+@app.post("/api/employer-join/{token}")
+def join_as_employer(token: str, data: JoinIn, response: Response, db: Session = Depends(get_db)):
+    invitation = db.scalar(select(EmployerInvitation).where(EmployerInvitation.token_hash == hashlib.sha256(token.encode()).hexdigest()))
+    if not invitation or invitation.revoked or invitation.used_at or invitation_expired(invitation):
+        raise HTTPException(410, "Uitnodiging is verlopen, gebruikt of ingetrokken")
+    email = data.email.lower()
+    if invitation.intended_email and invitation.intended_email != email:
+        raise HTTPException(409, "Gebruik het e-mailadres waarvoor deze uitnodiging is gemaakt")
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(409, "Dit e-mailadres bestaat al")
+    organization = Organization(name=invitation.organization_name)
+    db.add(organization); db.flush()
+    employer = User(organization_id=organization.id, email=email, password_hash=hash_password(data.password), role="org_admin", display_name=data.name.strip())
+    db.add(employer); db.flush()
+    db.add(OrganizationSettings(organization_id=organization.id, care_types_enc=encrypt_json([]), branding_enc=encrypt_json({"product": "Demo-Zorg", "developer": "CommunityTools"})))
+    invitation.used_at = datetime.now(timezone.utc)
+    db.add(AuditLog(organization_id=organization.id, user_id=employer.id, action="employer_invitation.accepted", target_type="organization", target_id=organization.id))
+    db.commit()
+    response.set_cookie("zorg_session", issue_token(employer), httponly=True, secure=settings.cookie_secure, samesite="lax", max_age=43200)
+    return {"ok": True}
 
 
 @app.get("/api/platform/documents")
@@ -448,8 +514,8 @@ def complete_reminder(reminder_id: str, db: Session = Depends(get_db), user: Use
 
 DEMO_ASSETS_DIR = Path(__file__).parent / "demo_assets"
 DEMO_DOCUMENTS = [
-    ("ZorgVerhaal_Formulierenbibliotheek.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Fictieve formulierenbibliotheek (Word) — demo, niet gebruiken zonder organisatievalidatie."),
-    ("ZorgVerhaal_Formulierenbibliotheek.pdf", "application/pdf", "Fictieve formulierenbibliotheek (PDF) — demo, niet gebruiken zonder organisatievalidatie."),
+    ("Demo-Zorg_Formulierenbibliotheek.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Fictieve formulierenbibliotheek (Word) — demo, niet gebruiken zonder organisatievalidatie."),
+    ("Demo-Zorg_Formulierenbibliotheek.pdf", "application/pdf", "Fictieve formulierenbibliotheek (PDF) — demo, niet gebruiken zonder organisatievalidatie."),
     ("forms_bundle.json", "application/json", "Fictieve formulierenbibliotheek (JSON-bundel) — demo, niet gebruiken zonder organisatievalidatie."),
 ]
 

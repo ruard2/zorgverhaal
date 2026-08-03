@@ -143,6 +143,20 @@ class Invitation(Base):
     intended_email: Mapped[str] = mapped_column(String(320), default="")
 
 
+class EmployerInvitation(Base):
+    __tablename__ = "employer_invitations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    organization_name: Mapped[str] = mapped_column(String(200))
+    contact_name: Mapped[str] = mapped_column(String(120))
+    intended_email: Mapped[str] = mapped_column(String(320), default="")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+
+
 class ClientAssignment(Base):
     __tablename__ = "client_assignments"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)

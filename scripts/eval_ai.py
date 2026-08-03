@@ -1,4 +1,4 @@
-"""Drie-call acceptatietest voor de volledige ZorgVerhaal-demonstratieroute."""
+"""Acceptatietest voor de volledige Demo-Zorg-demonstratieroute."""
 import json
 import re
 import statistics

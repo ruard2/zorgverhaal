@@ -4,3 +4,5 @@ __pycache__/
 .pytest_cache/
 .venv/
 zorgverhaal.db
+~$*.docx
+docs/Houvast-werkgeversdemo.docx

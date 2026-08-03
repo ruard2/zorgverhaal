@@ -227,6 +227,14 @@ def test_employer_overview_has_direct_employee_demo_switch():
     frontend = Path("static/app.js").read_text(encoding="utf-8")
     assert "Bekijk als demomedewerker" in frontend
     assert "workerDemoOverview" in frontend
+
+
+def test_platform_owner_can_invite_employer_and_download_personal_letter():
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "Nodig werkgever uit" in frontend
+    assert "Download persoonlijke brief" in frontend
+    assert "employer_join" in frontend
+    assert "Demo-Zorg" in frontend
     assert 'api("/api/me/form-mode"' in frontend
     assert "Altijd eerst vragen" in frontend
 
