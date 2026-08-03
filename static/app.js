@@ -14,6 +14,7 @@ async function api(path, options={}) {
 }
 
 function shell(content, title="ZorgVerhaal AI") {
+  window.scrollTo({top:0,left:0,behavior:"instant"});
   app.innerHTML = `<div class="ribbon">FICTIEVE DEMO · GEBRUIK GEEN ECHTE CLIËNTGEGEVENS</div><main><header><b class="logo">Z</b><strong>${esc(title)}</strong><button class="headlink" id="home">⌂</button></header><div class="error-slot"></div>${content}</main>`;
   document.querySelector("#home")?.addEventListener("click", routeHome);
   if(title==="Organisatiebeheer" && state.me?.role==="org_admin" && document.querySelector(".pad")) {
