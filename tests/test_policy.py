@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.ai_service import apply_deterministic_fields, apply_simple_answers_without_ai, choose_model
 from app.config import get_settings
 from app.legal_policy import SYSTEM_PROMPT
@@ -219,6 +221,12 @@ def test_form_mode_choice_can_be_remembered_and_changed_in_settings():
     assert "Hoe wil je dit formulier invullen?" in frontend
     assert "Onthoud mijn keuze" in frontend
     assert "employeeSettingsPage" in frontend
+
+
+def test_employer_overview_has_direct_employee_demo_switch():
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "Bekijk als demomedewerker" in frontend
+    assert "workerDemoOverview" in frontend
     assert 'api("/api/me/form-mode"' in frontend
     assert "Altijd eerst vragen" in frontend
 
