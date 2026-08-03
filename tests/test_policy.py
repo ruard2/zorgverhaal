@@ -235,6 +235,8 @@ def test_platform_owner_can_invite_employer_and_download_personal_letter():
     assert "Download persoonlijke brief" in frontend
     assert "employer_join" in frontend
     assert "Demo-Zorg" in frontend
+    assert "Werkgeversaccount aanmaken" in frontend
+    assert 'id="employerJoin" class="registrationcard" hidden' in frontend
     assert 'api("/api/me/form-mode"' in frontend
     assert "Altijd eerst vragen" in frontend
 
