@@ -28,20 +28,20 @@ def test_prompt_is_lean_and_has_one_question_strategy():
     assert "maximaal één volgende vraag" not in prompt
 
 
-def test_routine_and_standard_incident_use_terra_but_acute_signal_uses_sol():
+def test_all_reports_use_terra_and_never_self_escalate_to_sol():
     settings = get_settings()
     assert choose_model("De dienst verliep rustig")[0] == settings.openai_model
     assert choose_model("Er was een medicatiefout")[0] == settings.openai_model
-    assert choose_model("Cliënt was ernstig benauwd en reageerde nauwelijks")[0] == settings.openai_complex_model
-    assert choose_model("Cliënt is vermist")[1] == "complex_signal"
+    assert choose_model("Cliënt was ernstig benauwd en reageerde nauwelijks")[0] == settings.openai_model
+    assert choose_model("Cliënt is vermist")[1] == "reporting"
 
 
 def test_normal_pain_medication_stays_on_the_fast_routine_route():
     settings = get_settings()
     model, route = choose_model("Cliënt had pijn en kreeg volgens afspraak pijnmedicatie")
     assert model == settings.openai_model
-    assert route == "routine"
-    assert choose_model("De medicatie was vergeten")[1] == "complex_signal"
+    assert route == "reporting"
+    assert choose_model("De medicatie was vergeten")[0] == settings.openai_model
 
 
 def test_registration_fields_are_deterministic_and_not_questions():
@@ -87,3 +87,21 @@ def test_only_relevant_incident_forms_are_preselected():
     assert incident_form_relevant("11_wzd_resistance", "Cliënt zei nee en trok haar arm terug")
     assert not incident_form_relevant("12_medication_deviation", "De dienst verliep rustig")
     assert not incident_form_relevant("12_medication_deviation", "Cliënt kreeg volgens afspraak pijnmedicatie")
+
+
+def test_incident_forms_are_suggestions_not_automatically_filled():
+    import inspect
+    from app.main import forms_to_fill
+
+    source = inspect.getsource(forms_to_fill)
+    assert 'form.cadence == "daily"' in source
+    assert "incident_form_relevant(" not in source
+
+
+def test_employee_selects_suggested_forms_without_an_ai_call():
+    from pathlib import Path
+
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "data-suggest-form" in frontend
+    assert "selectedSuggestedForms" in frontend
+    assert "formFillPage(button.dataset.formId)" in frontend

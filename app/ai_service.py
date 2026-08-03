@@ -53,12 +53,9 @@ META_FIELD_HINTS = {
 
 
 def choose_model(narrative: str) -> tuple[str, str]:
-    text = narrative.casefold()
-    if any(word in text for word in URGENT_SIGNAL_WORDS):
-        return settings.openai_complex_model, "urgent_complex"
-    if any(word in text for word in COMPLEX_SIGNAL_WORDS):
-        return settings.openai_model, "complex_signal"
-    return settings.openai_model, "routine"
+    # Rapportages blijven op het lichte model. De AI mag risico's en extra
+    # formulieren signaleren, maar schaalt zichzelf niet op naar Sol.
+    return settings.openai_model, "reporting"
 
 
 def privacy_safe_identifier(user_id: str) -> str:

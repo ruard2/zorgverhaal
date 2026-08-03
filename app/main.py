@@ -444,9 +444,6 @@ def forms_to_fill(db: Session, organization_id: str, narrative: str = "") -> lis
     for form in rows:
         if form.cadence == "daily":
             selected.append(form)
-            continue
-        if incident_form_relevant(form.form_type, narrative):
-            selected.append(form)
     return [compact_form(form) for form in selected]
 
 
