@@ -95,6 +95,16 @@ def migrate() -> None:
             if "session_id" not in submission_columns:
                 conn.execute(text("ALTER TABLE form_submissions ADD COLUMN session_id VARCHAR(36) REFERENCES reporting_sessions(id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_form_submissions_session_id ON form_submissions (session_id)"))
+        # Bestaande definitieve demoformulieren zijn via het auditspoor al aan hun
+        # rapportagesessie te herleiden. Vul die koppeling eenmalig brongetrouw aan.
+        audit_rows = conn.execute(text("SELECT target_id, details FROM audit_logs WHERE action = 'form.submitted'"))
+        for target_id, details in audit_rows:
+            try:
+                session_id = json.loads(details or "{}").get("session")
+            except (TypeError, json.JSONDecodeError):
+                session_id = None
+            if session_id:
+                conn.execute(text("UPDATE form_submissions SET session_id = :session_id WHERE id = :submission_id AND session_id IS NULL"), {"session_id": session_id, "submission_id": target_id})
 
 
 @asynccontextmanager
