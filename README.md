@@ -16,7 +16,7 @@ Een organisatiebeheerder kan zonder apart account de medewerkersdemo openen. All
 - Maximaal vier gebundelde vragen per ronde, zodat meestal één aanvullende AI-call volstaat.
 - GPT-5.6 Luna zonder reasoning voor snelle dagelijkse extractie; Sol wordt alleen gebruikt voor eenmalige formulierimport.
 - Vaste registratiegegevens en formulierselectie worden door de applicatie afgehandeld; alleen resterende vrije tekst gaat naar de rapportage-AI.
-- De uitgebreide veiligheids-/juridische prompt wordt alleen bij een concreet veiligheidssignaal meegestuurd. API-responses worden niet bij OpenAI opgeslagen (`store=false`).
+- De dagelijkse rapportage verstuurt nooit de uitgebreide formulier-specifieke juridische prompt. Een gekozen aanvullend formulier wordt in de huidige flow handmatig ingevuld, dus daarvoor is geen extra AI-call nodig. API-responses worden niet bij OpenAI opgeslagen (`store=false`).
 - Relevante incident-, medicatie-, Wzd- en crisisformulieren worden direct in dezelfde call als concept ingevuld.
 - Harde API-timeout zonder verborgen automatische retry; invoer blijft bij een fout behouden.
 - Auditlog met modelroute, latency, tokengebruik, cachegebruik en OpenAI response-ID.

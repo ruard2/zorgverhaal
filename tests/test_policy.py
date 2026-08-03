@@ -1,4 +1,4 @@
-from app.ai_service import apply_deterministic_fields, choose_model, needs_extended_safety_policy
+from app.ai_service import apply_deterministic_fields, choose_model
 from app.config import get_settings
 from app.legal_policy import SYSTEM_PROMPT
 from app.schemas import AIPlan, ClarificationQuestion, FilledField, FormDraft, RiskLevel
@@ -36,9 +36,13 @@ def test_all_reports_use_luna_and_never_self_escalate_to_sol():
     assert choose_model("Cliënt is vermist")[1] == "reporting"
 
 
-def test_large_legal_policy_is_only_sent_for_safety_signals():
-    assert not needs_extended_safety_policy("Marieke was vrolijk, at minder en ging op tijd slapen")
-    assert needs_extended_safety_policy("Cliënt is gevallen en heeft mogelijk letsel")
+def test_daily_reporting_never_sends_the_extended_legal_prompt():
+    import inspect
+    from app.ai_service import next_plan
+
+    source = inspect.getsource(next_plan)
+    assert "LEGAL_POLICY_NL" not in source
+    assert "SYSTEM_PROMPT" in source
 
 
 def test_normal_pain_medication_stays_on_the_fast_routine_route():
