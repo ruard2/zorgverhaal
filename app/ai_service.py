@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -68,7 +69,8 @@ def transcribe_audio(content: bytes, *, file_name: str, mime_type: str, user_id:
 def _known_registration_value(field_id: str, label: str, context: dict) -> str | None:
     normalized_id = field_id.casefold()
     if normalized_id in {"client_id", "client_reference", "client_name"}:
-        return str(context.get("client_reference") or context.get("client_name") or "")
+        # Technische UUID's horen in de database, niet in een leesbaar zorgformulier.
+        return str(context.get("client_name") or context.get("client_reference") or "")
     if normalized_id in {"event_datetime", "datetime", "date", "time"}:
         return str(context.get("datetime") or "")
     if normalized_id in {"author", "employee", "caregiver"}:
@@ -80,6 +82,56 @@ def _known_registration_value(field_id: str, label: str, context: dict) -> str |
     if normalized_id in {"time_spent", "care_minutes", "review_confirmed", "human_confirmation"}:
         return "Wordt bij de eindcontrole ingevuld"
     return None
+
+
+def _humanize_generated_values(plan: AIPlan) -> None:
+    """Normaliseer modeluitvoer voor professionals, centraal voor ieder formulier."""
+    replacements = {"true": "Ja", "false": "Nee"}
+    bot_markers = ("niet beschreven", "niet vermeld", "wordt bij de eindcontrole ingevuld")
+    for draft in plan.form_drafts:
+        for field in draft.fields:
+            normalized = field.value.casefold().strip()
+            if normalized in replacements:
+                field.value = replacements[normalized]
+            if field.status == "unknown" and any(marker in normalized for marker in bot_markers):
+                field.value = ""
+
+
+def _reuse_explicit_handover(plan: AIPlan, narrative: str, context: dict) -> None:
+    """Neem een expliciete vervolgzin letterlijk over; vraag niet opnieuw naar wat al staat."""
+    next_shift = str(context.get("next_shift") or "").casefold()
+    if not next_shift:
+        return
+    sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", narrative) if sentence.strip()]
+    action_sentence = next((sentence for sentence in reversed(sentences) if next_shift in sentence.casefold()), None)
+    if not action_sentence:
+        return
+    filled_ids = set()
+    for draft in plan.form_drafts:
+        if "handover" not in draft.form_type.casefold():
+            continue
+        for field in draft.fields:
+            if field.field_id == "open_actions" and field.status == "needs_input":
+                field.value = action_sentence
+                field.status = "filled"
+                filled_ids.add(field.field_id)
+        draft.complete = all(field.status != "needs_input" for field in draft.fields)
+    if filled_ids:
+        plan.clarification_questions = [question for question in plan.clarification_questions if not question.field_ids or not any(field_id.rsplit(".", 1)[-1] in filled_ids for field_id in question.field_ids)]
+
+
+def _reuse_explicit_medication_support(plan: AIPlan, narrative: str) -> None:
+    sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", narrative) if sentence.strip()]
+    support_sentence = next((sentence for sentence in sentences if re.search(r"\b(kreeg|toegediend|gegeven)\b", sentence.casefold()) and any(term in sentence.casefold() for term in ("medicatie", "paracetamol", "tablet"))), None)
+    if not support_sentence:
+        return
+    for draft in plan.form_drafts:
+        for field in draft.fields:
+            if field.field_id == "support_given" and field.status == "needs_input":
+                field.value = support_sentence
+                field.status = "filled"
+        draft.complete = all(field.status != "needs_input" for field in draft.fields)
+    plan.clarification_questions = [question for question in plan.clarification_questions if "support_given" not in {field_id.rsplit(".", 1)[-1] for field_id in question.field_ids}]
 
 
 def _apply_explicit_routine_defaults(plan: AIPlan, narrative: str) -> None:
@@ -121,6 +173,9 @@ def _consolidate_questions(plan: AIPlan, maximum: int = 4) -> None:
 def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrative: str = "", required_fields: dict[str, dict[str, str]] | None = None, confirmed_unknown_ids: set[str] | None = None) -> AIPlan:
     required_fields = required_fields or {}
     confirmed_unknown_ids = confirmed_unknown_ids or set()
+    known_field_ids = {field.field_id for draft in plan.form_drafts for field in draft.fields}
+    for question in plan.clarification_questions:
+        question.field_ids = [field_id.rsplit(".", 1)[-1] for field_id in question.field_ids if field_id.rsplit(".", 1)[-1] in known_field_ids]
     app_managed_ids: set[str] = set()
     for draft in plan.form_drafts:
         for field in draft.fields:
@@ -166,6 +221,9 @@ def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrati
             retained_questions.append(question)
         plan.clarification_questions = retained_questions
 
+    _humanize_generated_values(plan)
+    _reuse_explicit_handover(plan, narrative, registration_context)
+    _reuse_explicit_medication_support(plan, narrative)
     _apply_explicit_routine_defaults(plan, narrative)
     needs_input = any(field.status == "needs_input" for draft in plan.form_drafts for field in draft.fields)
     if not needs_input and plan.state != "urgent":
@@ -185,7 +243,8 @@ def apply_deterministic_fields(plan: AIPlan, registration_context: dict, narrati
         plan.answer_type = first.answer_type
         plan.answer_options = first.answer_options
     elif needs_input:
-        raise AIUnavailable("De AI leverde een onvolledig concept zonder verhelderingsvragen.", code="inconsistent_output")
+        missing_ids = [field.field_id for draft in plan.form_drafts for field in draft.fields if field.status == "needs_input"]
+        raise AIUnavailable("De AI leverde een onvolledig concept zonder verhelderingsvragen: " + ", ".join(missing_ids), code="inconsistent_output")
     return plan
 
 
@@ -201,6 +260,39 @@ def _usage_dict(response) -> dict[str, Any]:
         "input_tokens_details": data.get("input_tokens_details", {}),
         "output_tokens_details": data.get("output_tokens_details", {}),
     }
+
+
+def apply_simple_answers_without_ai(plan: AIPlan, answers: list[dict[str, str]]) -> bool:
+    """Verwerk eenduidige veldantwoorden lokaal; alleen interpretatie vraagt een tweede AI-call."""
+    known_field_ids = {field.field_id for draft in plan.form_drafts for field in draft.fields}
+    for question in plan.clarification_questions:
+        question.field_ids = [field_id.rsplit(".", 1)[-1] for field_id in question.field_ids if field_id.rsplit(".", 1)[-1] in known_field_ids]
+    questions = {question.id: question for question in plan.clarification_questions}
+    if plan.risk_level == "urgent" or any(len(questions.get(item["question_id"], ClarificationQuestion(id="missing", question="")).field_ids) != 1 for item in answers):
+        return False
+    field_index = {field.field_id: field for draft in plan.form_drafts for field in draft.fields}
+    additions = []
+    for item in answers:
+        question = questions.get(item["question_id"])
+        if not question or question.field_ids[0] not in field_index:
+            return False
+        value = item["value"].strip()
+        field = field_index[question.field_ids[0]]
+        field.value = "" if value.casefold() == "niet bekend" else value
+        field.status = "unknown" if value.casefold() == "niet bekend" else "filled"
+        if field.status == "filled":
+            additions.append(value.rstrip(". "))
+    for draft in plan.form_drafts:
+        draft.complete = all(field.status != "needs_input" for field in draft.fields)
+    if additions:
+        plan.draft_report = plan.draft_report.rstrip() + " Aanvullend: " + ". ".join(additions) + "."
+    plan.clarification_questions = []
+    plan.missing_information = []
+    plan.state = "ready"
+    plan.next_question = None
+    plan.why_this_question = None
+    plan.answer_options = []
+    return True
 
 
 def next_plan(*, narrative: str, conversation: list[dict], client_context: str, goals: list[dict], form_schema: dict, fill_forms: list[dict] | None = None, form_catalog: list[dict] | None = None, registration_context: dict | None = None, user_id: str = "anonymous") -> AIResult:

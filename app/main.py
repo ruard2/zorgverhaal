@@ -13,12 +13,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
-from .ai_service import AIUnavailable, next_plan, transcribe_audio
+from .ai_service import AIUnavailable, apply_simple_answers_without_ai, next_plan, transcribe_audio
 from .config import get_settings
 from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
 from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
-from .schemas import AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
+from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
@@ -730,19 +730,23 @@ def run_ai(db: Session, row: ReportingSession, user: User):
     form = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == row.organization_id, FormTemplate.form_type == "daily_care", FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
     form_schema = {} if target_form else (decrypt_json(form.schema_enc) if form else DAILY_FORM_SCHEMA)
     fill_forms = [compact_form(target_form)] if target_form else forms_to_fill(db, row.organization_id, decrypt_text(row.narrative_enc))
-    form_catalog = [] if target_form else build_form_catalog(db, row.organization_id)
+    narrative = decrypt_text(row.narrative_enc)
+    # Gewone code beperkt de catalogus tot formulieren met een concreet signaal.
+    # De AI hoeft daardoor niet bij iedere rustige dienst zeventien formulieren te lezen.
+    form_catalog = [] if target_form else [form for form in build_form_catalog(db, row.organization_id) if incident_form_relevant(form["form_type"], narrative)]
     org = db.get(Organization, row.organization_id)
+    role_label = {"caregiver": "Zorgmedewerker", "org_admin": "Organisatiebeheerder", "platform_admin": "Platformbeheerder"}.get(user.role, "Zorgmedewerker")
+    name_label = user.email.split("@", 1)[0].replace(".", " ").replace("_", " ").replace("-", " ").title()
     registration_context = {
         "client_name": decrypt_text(client.display_name_enc),
         "client_reference": client.id,
         "datetime": datetime.now(timezone.utc).isoformat(timespec="minutes"),
-        "author": user.email,
-        "author_role": user.role,
+        "author": name_label,
+        "author_role": role_label,
         "location": org.name if org else "",
         **shift_context(db, row.organization_id),
     }
     try:
-        narrative = decrypt_text(row.narrative_enc)
         result = next_plan(narrative=narrative, conversation=[item for item in conversation if item.get("kind") != "target_form"], client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=fill_forms, form_catalog=form_catalog, registration_context=registration_context, user_id=user.id)
     except AIUnavailable as exc:
         db.rollback()
@@ -815,6 +819,12 @@ def answer(session_id: str, data: AnswerIn, db: Session = Depends(get_db), user:
     question_by_id = {question.get("id"): question for question in questions}
     conversation.extend({"question_id": answer.question_id, "field_ids": question_by_id.get(answer.question_id, {}).get("field_ids", []), "answer": answer.value} for answer in data.answers)
     row.conversation_enc = encrypt_json(conversation)
+    local_plan = AIPlan.model_validate(plan)
+    if apply_simple_answers_without_ai(local_plan, [answer.model_dump() for answer in data.answers]):
+        row.ai_state_enc = encrypt_json(local_plan.model_dump(mode="json")); row.status = "ready"
+        audit(db, user, "answers.applied_locally", "session", row.id, {"answers": len(data.answers), "ai_calls_saved": 1})
+        db.commit()
+        return {"session_id": row.id, "plan": local_plan, "processed_locally": True}
     return {"session_id": row.id, "plan": run_ai(db, row, user)}
 
 
@@ -967,7 +977,7 @@ def answer_review_request(review_id: str, data: AddendumIn, db: Session = Depend
     if not review or review.organization_id != user.organization_id or review.assigned_to != user.id: raise HTTPException(404, "Verzoek niet gevonden")
     if review.status != "open": raise HTTPException(409, "Dit verzoek is al beantwoord")
     addendum = ReportAddendum(organization_id=user.organization_id, report_id=review.report_id, review_id=review.id, client_id=review.client_id, author_id=user.id, text_enc=encrypt_text(data.text))
-    db.add(addendum); review.status = "answered"; review.answered_at = datetime.now(timezone.utc)
+    db.add(addendum); db.flush(); review.status = "answered"; review.answered_at = datetime.now(timezone.utc)
     audit(db, user, "report.addendum_submitted", "report_addendum", addendum.id, {"report_id": review.report_id, "review_id": review.id}); db.commit()
     return {"ok": True, "addendum_id": addendum.id}
 

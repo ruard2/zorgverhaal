@@ -1,66 +1,26 @@
 [
   {
-    "id": "routine_stable",
-    "narrative": "De dienst verliep rustig en volgens het normale dagritme. Cliënt at en dronk zoals gebruikelijk en er waren geen bijzonderheden.",
-    "expected_route": "routine",
+    "id": "demo_rustige_dienst",
+    "narrative": "Henk had een rustige dag volgens zijn normale dagritme. Hij at en dronk zoals gebruikelijk, deed mee met de koffie en puzzelde na de lunch. Er waren geen bijzonderheden, risico's of vervolgacties.",
     "allowed_risks": ["none"],
     "max_questions": 0,
-    "required_suggestions": []
+    "required_suggestions": [],
+    "forbidden_suggestions": ["09_internal_incident", "12_medication_deviation"]
   },
   {
-    "id": "thin_observation",
-    "narrative": "Cliënt was vanmiddag wat onrustig.",
-    "expected_route": "routine",
+    "id": "demo_medicatie_met_effect",
+    "narrative": "Samir gaf om 10:15 aan hoofdpijn te hebben en beoordeelde de pijn als 7 op 10. Volgens de bestaande afspraak kreeg hij twee paracetamol. Om 11:00 gaf Samir aan dat de pijn 2 op 10 was. Hij ging daarna mee wandelen en oogde ontspannen. De avonddienst hoeft alleen te blijven letten op terugkeer van de hoofdpijn.",
     "allowed_risks": ["none", "attention"],
-    "max_questions": 4,
-    "required_suggestions": []
+    "max_questions": 0,
+    "required_suggestions": [],
+    "forbidden_suggestions": ["12_medication_deviation"]
   },
   {
-    "id": "concrete_support",
-    "narrative": "Cliënt liep drie keer naar de voordeur en vroeg wanneer haar dochter kwam. Ik heb de agenda samen bekeken. Daarna ging cliënt rustig koffie drinken.",
-    "expected_route": "routine",
-    "allowed_risks": ["none", "attention"],
-    "max_questions": 1,
-    "required_suggestions": []
-  },
-  {
-    "id": "medication_missed",
-    "narrative": "Om 13:10 zag ik dat de voorgeschreven medicatie van 12:00 nog in het bakje lag. Cliënt had geen zichtbare klachten. Ik gaf niets alsnog en belde de verpleegkundige.",
-    "expected_route": "complex_signal",
+    "id": "demo_duidelijke_afwijking",
+    "narrative": "Om 13:10 zag ik dat de voorgeschreven medicatie van 12:00 nog in het bakje lag. Marieke had geen zichtbare klachten. Ik heb niets alsnog gegeven en om 13:15 de verpleegkundige gebeld. De verpleegkundige adviseerde de medicatie niet alsnog te geven en Marieke te observeren. De avonddienst controleert haar toestand en koppelt veranderingen terug.",
     "allowed_risks": ["attention", "urgent"],
-    "max_questions": 4,
-    "required_suggestions": ["12_medication_deviation"]
-  },
-  {
-    "id": "fall_no_injury",
-    "narrative": "Cliënt gleed om 09:20 uit naast het bed. Ik zag geen wond of zwelling. Cliënt zei geen pijn te hebben. Ik informeerde de verpleegkundige.",
-    "expected_route": "complex_signal",
-    "allowed_risks": ["attention", "urgent"],
-    "max_questions": 4,
-    "required_suggestions": ["09_internal_incident"]
-  },
-  {
-    "id": "resistance",
-    "narrative": "Cliënt trok haar arm terug en zei nee toen ik wilde helpen bij het douchen. Ik ben gestopt en heb wassen aan de wastafel aangeboden.",
-    "expected_route": "complex_signal",
-    "allowed_risks": ["attention"],
-    "max_questions": 4,
-    "required_suggestions": ["11_wzd_resistance"]
-  },
-  {
-    "id": "acute_breathing",
-    "narrative": "Cliënt werd plots ernstig benauwd en reageerde nauwelijks. Ik heb direct 112 gebeld en het lokale noodprotocol gevolgd.",
-    "expected_route": "urgent_complex",
-    "allowed_risks": ["urgent"],
-    "max_questions": 4,
-    "required_suggestions": []
-  },
-  {
-    "id": "unknown_is_not_no",
-    "narrative": "Een collega vertelde dat cliënt mogelijk was gevallen. Ik heb dit niet zelf gezien en weet niet wanneer dit gebeurd zou zijn.",
-    "expected_route": "complex_signal",
-    "allowed_risks": ["attention", "urgent"],
-    "max_questions": 4,
-    "required_suggestions": ["09_internal_incident"]
+    "max_questions": 0,
+    "required_suggestions": ["12_medication_deviation"],
+    "forbidden_suggestions": []
   }
 ]

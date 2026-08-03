@@ -1,4 +1,4 @@
-from app.ai_service import apply_deterministic_fields, choose_model
+from app.ai_service import apply_deterministic_fields, apply_simple_answers_without_ai, choose_model
 from app.config import get_settings
 from app.legal_policy import SYSTEM_PROMPT
 from app.schemas import AIPlan, ClarificationQuestion, FilledField, FormDraft, RiskLevel
@@ -123,7 +123,7 @@ def test_frontend_uses_structured_answers_and_readonly_preview():
     assert "question_id:q.id" in frontend
     assert "JSON.stringify({answers})" in frontend
     assert "formDraftsPreview(p)" in frontend
-    assert "Bekijk het huidige AI-concept" in frontend
+    assert "Bekijk het concept dat al klaarstaat" in frontend
     assert 'api("/api/transcribe"' in frontend
     assert "MediaRecorder" in frontend
     assert "SpeechRecognition" not in frontend
@@ -240,3 +240,24 @@ def test_form_mode_is_a_validated_server_side_user_preference():
     assert "form_mode" in inspect.getsource(me)
     assert "user.form_mode = data.form_mode" in inspect.getsource(set_my_form_mode)
     assert "ADD COLUMN IF NOT EXISTS form_mode" in inspect.getsource(migrate)
+
+
+def test_simple_clarification_answer_is_applied_without_a_second_ai_call():
+    plan = minimal_plan(
+        clarification_questions=[ClarificationQuestion(id="effect", field_ids=["client_response"], question="Wat merkte je daarna?")],
+        form_drafts=[FormDraft(form_type="daily", title="Dagrapportage", fields=[FilledField(field_id="client_response", label="Reactie en effect", status="needs_input")])],
+    )
+    assert apply_simple_answers_without_ai(plan, [{"question_id": "effect", "value": "Samir gaf aan dat de pijn minder was."}])
+    assert plan.state == "ready"
+    assert plan.form_drafts[0].fields[0].value == "Samir gaf aan dat de pijn minder was."
+    assert plan.clarification_questions == []
+
+
+def test_generated_boolean_and_client_reference_are_human_readable():
+    plan = minimal_plan(form_drafts=[FormDraft(form_type="daily", title="Dagrapportage", fields=[
+        FilledField(field_id="client_id", label="Cliënt-ID", value="technisch", status="filled"),
+        FilledField(field_id="follow_up", label="Vervolgactie nodig?", value="true", status="filled"),
+    ])])
+    result = apply_deterministic_fields(plan, {"client_name": "Samir El Amrani", "client_reference": "uuid-niet-tonen"})
+    assert result.form_drafts[0].fields[0].value == "Samir El Amrani"
+    assert result.form_drafts[0].fields[1].value == "Ja"
