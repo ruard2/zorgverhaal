@@ -203,6 +203,10 @@ class ShiftSettingsIn(BaseModel):
     shifts: list[ShiftDefinition] = Field(min_length=1, max_length=8)
 
 
+class OrganizationContextIn(BaseModel):
+    care_context: str = Field(default="", max_length=4000)
+
+
 class FormSubmitIn(BaseModel):
     client_id: str | None = None
     answers: dict = Field(default_factory=dict)

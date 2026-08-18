@@ -278,8 +278,9 @@ def apply_simple_answers_without_ai(plan: AIPlan, answers: list[dict[str, str]])
             return False
         value = item["value"].strip()
         field = field_index[question.field_ids[0]]
-        field.value = "" if value.casefold() == "niet bekend" else value
-        field.status = "unknown" if value.casefold() == "niet bekend" else "filled"
+        skipped = value.casefold() in {"niet bekend", "overgeslagen"}
+        field.value = "" if skipped else value
+        field.status = "unknown" if skipped else "filled"
         if field.status == "filled":
             additions.append(value.rstrip(". "))
     for draft in plan.form_drafts:
@@ -295,7 +296,31 @@ def apply_simple_answers_without_ai(plan: AIPlan, answers: list[dict[str, str]])
     return True
 
 
-def next_plan(*, narrative: str, conversation: list[dict], client_context: str, goals: list[dict], form_schema: dict, fill_forms: list[dict] | None = None, form_catalog: list[dict] | None = None, registration_context: dict | None = None, user_id: str = "anonymous") -> AIResult:
+DESTINATION_PATTERN = re.compile(r"\bnaar\s+(?:(?:de|het|zijn|haar|een)\s+)?(?:eigen\s+)?(?:kamer|huis|woning|slaapkamer|woonkamer|badkamer|toilet|keuken|afdeling|tuin|buiten|werk)\b", re.IGNORECASE)
+
+
+def enforce_source_destinations(plan: AIPlan, narrative: str, conversation: list[dict]) -> None:
+    """Voorkom dat een concreet genoemde bestemming door een andere wordt vervangen."""
+    source = " ".join([narrative, *(str(item.get("answer", "")) for item in conversation)])
+    source_destinations = DESTINATION_PATTERN.findall(source)
+    if len(source_destinations) != 1:
+        return
+    exact_destination = source_destinations[0]
+    normalized = lambda value: re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
+    source_key = normalized(exact_destination)
+
+    def correct(value: str) -> str:
+        def replace(match: re.Match) -> str:
+            return match.group(0) if normalized(match.group(0)) == source_key else exact_destination
+        return DESTINATION_PATTERN.sub(replace, value)
+
+    plan.draft_report = correct(plan.draft_report)
+    for draft in plan.form_drafts:
+        for field in draft.fields:
+            field.value = correct(field.value)
+
+
+def next_plan(*, narrative: str, conversation: list[dict], client_context: str, organization_context: str = "", goals: list[dict], form_schema: dict, fill_forms: list[dict] | None = None, form_catalog: list[dict] | None = None, registration_context: dict | None = None, user_id: str = "anonymous") -> AIResult:
     if not settings.openai_api_key:
         raise AIUnavailable("AI is niet geconfigureerd", code="not_configured")
 
@@ -310,6 +335,8 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
         payload["eerdere_verheldering"] = conversation
     if client_context:
         payload["clientcontext"] = client_context
+    if organization_context:
+        payload["organisatie_zorgcontext"] = organization_context
     if goals:
         payload["actieve_zorgdoelen"] = goals
     if fill_forms:
@@ -353,8 +380,39 @@ def next_plan(*, narrative: str, conversation: list[dict], client_context: str, 
         raise AIUnavailable("De AI gaf geen bruikbaar concept. Probeer het opnieuw.", code="invalid_output")
 
     required_fields = {form.get("form_type", ""): {field.get("id", ""): field.get("label", field.get("id", "")) for section in form.get("sections", []) for field in section.get("fields", []) if field.get("required")} for form in (fill_forms or [])}
-    confirmed_unknown_ids = {field_id for item in conversation if str(item.get("answer", "")).casefold().strip() == "niet bekend" for field_id in item.get("field_ids", [])}
+    confirmed_unknown_ids = {field_id for item in conversation if str(item.get("answer", "")).casefold().strip() in {"niet bekend", "overgeslagen"} for field_id in item.get("field_ids", [])}
     plan = apply_deterministic_fields(response.output_parsed, registration_context, narrative, required_fields, confirmed_unknown_ids)
+    enforce_source_destinations(plan, narrative, conversation)
+    asked_ids = {str(item.get("question_id", "")) for item in conversation}
+    asked_fields = {field_id.rsplit(".", 1)[-1] for item in conversation for field_id in item.get("field_ids", [])}
+    normalize_question = lambda value: re.sub(r"[^a-z0-9]+", " ", str(value).casefold()).strip()
+    asked_texts = {normalize_question(item.get("question", "")) for item in conversation if item.get("question")}
+    fresh_questions = []
+    for question in plan.clarification_questions:
+        fields = {field_id.rsplit(".", 1)[-1] for field_id in question.field_ids}
+        repeated = question.id in asked_ids or bool(fields & asked_fields) or normalize_question(question.question) in asked_texts
+        if repeated:
+            for draft in plan.form_drafts:
+                for field in draft.fields:
+                    if field.field_id in fields and field.status == "needs_input":
+                        field.status = "unknown"
+                        field.value = ""
+            continue
+        fresh_questions.append(question)
+    plan.clarification_questions = fresh_questions
+    if fresh_questions:
+        plan.state = "ask"
+        plan.next_question = fresh_questions[0].question
+        plan.why_this_question = fresh_questions[0].why
+        plan.answer_type = fresh_questions[0].answer_type
+        plan.answer_options = fresh_questions[0].answer_options
+    else:
+        plan.state = "ready"
+        plan.next_question = None
+        plan.why_this_question = None
+        plan.answer_options = []
+        for draft in plan.form_drafts:
+            draft.complete = all(field.status != "needs_input" for field in draft.fields)
     telemetry = {
         "model": model,
         "route": route,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.ai_service import apply_deterministic_fields, apply_simple_answers_without_ai, choose_model
+from app.ai_service import apply_deterministic_fields, apply_simple_answers_without_ai, choose_model, enforce_source_destinations
 from app.config import get_settings
 from app.legal_policy import SYSTEM_PROMPT
 from app.schemas import AIPlan, ClarificationQuestion, FilledField, FormDraft, RiskLevel
@@ -18,6 +18,22 @@ def minimal_plan(**overrides):
     )
     data.update(overrides)
     return AIPlan(**data)
+
+
+def test_source_destination_can_never_change_from_room_to_home():
+    plan = minimal_plan(
+        draft_report="Daarna is cliënt naar huis gestuurd.",
+        form_drafts=[FormDraft(form_type="incident", title="Incident", fields=[FilledField(field_id="actions", label="Acties", value="Cliënt is naar huis gestuurd.")])],
+    )
+    enforce_source_destinations(plan, "Daarna stuurde ik cliënt naar zijn kamer.", [])
+    assert "naar zijn kamer" in plan.draft_report
+    assert "naar huis" not in plan.form_drafts[0].fields[0].value
+
+
+def test_source_destination_is_left_unchanged_when_it_matches():
+    plan = minimal_plan(draft_report="Cliënt ging naar de kamer.")
+    enforce_source_destinations(plan, "Cliënt ging naar de kamer.", [])
+    assert plan.draft_report == "Cliënt ging naar de kamer."
 
 
 def test_prompt_is_lean_and_has_one_question_strategy():

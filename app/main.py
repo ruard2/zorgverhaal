@@ -19,7 +19,7 @@ from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
 from .employer_invitation_document import build_employer_invitation_document
 from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, EmployerInvitation, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
-from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, CompanyRegistrationIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, FormUpdateIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, PasswordChangeIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
+from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, CompanyRegistrationIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, FormUpdateIn, InvitationIn, JoinIn, LoginIn, OrganizationContextIn, OrganizationIn, PasswordChangeIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
@@ -826,6 +826,30 @@ def get_shift_settings(db: Session = Depends(get_db), user: User = Depends(curre
     return {"shifts": organization_shifts(db, user.organization_id), "active": shift_context(db, user.organization_id)}
 
 
+@app.get("/api/organization/context")
+def get_organization_context(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    row = db.scalar(select(OrganizationSettings).where(OrganizationSettings.organization_id == user.organization_id))
+    branding = decrypt_json(row.branding_enc) if row else {}
+    return {"care_context": branding.get("care_context", "") if isinstance(branding, dict) else ""}
+
+
+@app.post("/api/organization/context")
+def set_organization_context(data: OrganizationContextIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    row = db.scalar(select(OrganizationSettings).where(OrganizationSettings.organization_id == user.organization_id))
+    if not row:
+        row = OrganizationSettings(organization_id=user.organization_id, care_types_enc=encrypt_json([]), branding_enc=encrypt_json({}))
+        db.add(row)
+    branding = decrypt_json(row.branding_enc)
+    branding = branding if isinstance(branding, dict) else {}
+    branding["care_context"] = data.care_context.strip()
+    row.branding_enc = encrypt_json(branding)
+    audit(db, user, "organization.context_changed", "organization", user.organization_id)
+    db.commit()
+    return {"ok": True, "care_context": branding["care_context"]}
+
+
 @app.post("/api/organization/shifts")
 def set_shift_settings(data: ShiftSettingsIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_role(user, "org_admin")
@@ -983,6 +1007,9 @@ def run_ai(db: Session, row: ReportingSession, user: User):
     # De AI hoeft daardoor niet bij iedere rustige dienst zeventien formulieren te lezen.
     form_catalog = [] if target_form else [form for form in build_form_catalog(db, row.organization_id) if incident_form_relevant(form["form_type"], narrative)]
     org = db.get(Organization, row.organization_id)
+    organization_settings = db.scalar(select(OrganizationSettings).where(OrganizationSettings.organization_id == row.organization_id))
+    organization_branding = decrypt_json(organization_settings.branding_enc) if organization_settings else {}
+    organization_context = organization_branding.get("care_context", "") if isinstance(organization_branding, dict) else ""
     role_label = professional_user_label(user).split(" · ", 1)[-1]
     name_label = professional_user_label(user).split(" · ", 1)[0]
     registration_context = {
@@ -995,7 +1022,7 @@ def run_ai(db: Session, row: ReportingSession, user: User):
         **shift_context(db, row.organization_id),
     }
     try:
-        result = next_plan(narrative=narrative, conversation=[item for item in conversation if item.get("kind") != "target_form"], client_context=decrypt_text(client.context_enc), goals=goals, form_schema=form_schema, fill_forms=fill_forms, form_catalog=form_catalog, registration_context=registration_context, user_id=user.id)
+        result = next_plan(narrative=narrative, conversation=[item for item in conversation if item.get("kind") != "target_form"], client_context=decrypt_text(client.context_enc), organization_context=organization_context, goals=goals, form_schema=form_schema, fill_forms=fill_forms, form_catalog=form_catalog, registration_context=registration_context, user_id=user.id)
     except AIUnavailable as exc:
         db.rollback()
         raise HTTPException(503, {"message": str(exc), "code": exc.code}) from exc
@@ -1065,7 +1092,7 @@ def answer(session_id: str, data: AnswerIn, db: Session = Depends(get_db), user:
         raise HTTPException(422, "Beantwoord alle open vragen precies één keer")
     conversation = decrypt_json(row.conversation_enc)
     question_by_id = {question.get("id"): question for question in questions}
-    conversation.extend({"question_id": answer.question_id, "field_ids": question_by_id.get(answer.question_id, {}).get("field_ids", []), "answer": answer.value} for answer in data.answers)
+    conversation.extend({"question_id": answer.question_id, "question": question_by_id.get(answer.question_id, {}).get("question", ""), "field_ids": question_by_id.get(answer.question_id, {}).get("field_ids", []), "answer": answer.value} for answer in data.answers)
     row.conversation_enc = encrypt_json(conversation)
     local_plan = AIPlan.model_validate(plan)
     if apply_simple_answers_without_ai(local_plan, [answer.model_dump() for answer in data.answers]):
