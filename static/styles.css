@@ -33,3 +33,5 @@
 .statstrip>[role="button"]{cursor:pointer;border-radius:10px;padding:6px}.statstrip>[role="button"]:hover,.statstrip>[role="button"]:focus{background:var(--mint);outline:2px solid transparent}
 .managementtiles{grid-template-columns:repeat(4,1fr)}
 @media(max-width:540px){.managementtiles{grid-template-columns:1fr 1fr}.managementtiles button:last-child{grid-column:auto}}
+.ribbonnote{display:flex;justify-content:space-between;gap:12px;padding:11px 13px;margin-bottom:18px;border-radius:12px;background:#fff1ca;color:#725600;font-size:11px}.ribbonnote b,.ribbonnote span{display:block}
+@media(max-width:540px){.ribbonnote{display:block}.ribbonnote span{margin-top:4px}}

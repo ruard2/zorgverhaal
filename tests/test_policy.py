@@ -270,6 +270,17 @@ def test_employer_tabs_use_browser_history():
     assert '"form-upload":"/beheer/formulier-uploaden"' in frontend
 
 
+def test_activated_upload_starts_guided_ai_employee_demo():
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "formActivationSuccessPage(result.form)" in frontend
+    assert "Test dit formulier met AI" in frontend
+    assert "function startUploadedFormDemo" in frontend
+    assert "/prepare-demo" in frontend
+    assert "Gebruik voorbeeldsituatie" in frontend
+    assert "FICTIEVE FORMULIERDEMO" in frontend
+    assert "DEMONSTRATIE VOLTOOID" in frontend
+
+
 def test_manual_form_has_no_redundant_ai_notice_or_confirmation_checkbox():
     from pathlib import Path
 

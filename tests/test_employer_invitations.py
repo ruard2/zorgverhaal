@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 
 from app.database import SessionLocal
 from app.main import app
-from app.models import Organization, User
-from app.security import hash_password, issue_token, verify_password
+from app.models import FormTemplate, Organization, User
+from app.security import encrypt_json, hash_password, issue_token, verify_password
 
 
 def test_platform_owner_invites_employer_downloads_letter_and_employer_seeds_demo():
@@ -107,3 +107,28 @@ def test_company_can_self_register_from_public_homepage():
         browser.post("/api/logout")
         assert browser.post("/api/login", json={"email": email, "password": payload["password"]}).status_code == 200
         assert browser.post("/api/register-company", json=payload).status_code == 409
+
+
+def test_employer_can_prepare_uploaded_form_demo_with_fictive_client():
+    suffix = uuid.uuid4().hex[:8]
+    with SessionLocal() as db:
+        organization = Organization(name=f"Formulierdemo {suffix}")
+        db.add(organization); db.flush()
+        employer = User(organization_id=organization.id, email=f"demo-{suffix}@example.nl", password_hash=hash_password("veilig-demo-wachtwoord"), role="org_admin")
+        db.add(employer); db.flush()
+        schema = {"purpose": "Demonstratie", "sections": [{"title": "Observatie", "fields": [{"id": "observatie", "label": "Observatie", "type": "textarea", "required": True, "options": []}]}]}
+        form = FormTemplate(organization_id=organization.id, title="Geüpload observatieformulier", form_type=f"upload_{suffix}", version=1, schema_enc=encrypt_json(schema), cadence="on_demand", status="active", created_by=employer.id)
+        db.add(form); db.commit(); db.refresh(employer); db.refresh(form)
+        token = issue_token(employer); form_id = form.id
+
+    with TestClient(app) as browser:
+        browser.cookies.set("zorg_session", token)
+        first = browser.post(f"/api/organization/forms/{form_id}/prepare-demo")
+        assert first.status_code == 200
+        assert first.json()["client_created"] is True
+        assert first.json()["client_name"] == "Noor de Vries"
+        assert "Noor" in first.json()["example_narrative"]
+        second = browser.post(f"/api/organization/forms/{form_id}/prepare-demo")
+        assert second.status_code == 200
+        assert second.json()["client_created"] is False
+        assert second.json()["client_id"] == first.json()["client_id"]

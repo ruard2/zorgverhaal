@@ -148,6 +148,10 @@ def index(): return FileResponse("static/index.html")
 def employer_portal_page(): return FileResponse("static/index.html")
 
 
+@app.get("/demo/formulier/{form_id}")
+def guided_form_demo_page(form_id: str): return FileResponse("static/index.html")
+
+
 @app.get("/health")
 def health(): return {"ok": True}
 
@@ -542,6 +546,32 @@ def activate_form_import(import_id: str, data: FormImportActivateIn, db: Session
     audit(db, user, "form_import.activated", "form", template.id, {"import_id": draft.id, "form_type": form_type, "version": template.version, "cadence": template.cadence})
     db.commit()
     return {"ok": True, "form": form_payload(template)}
+
+
+@app.post("/api/organization/forms/{form_id}/prepare-demo")
+def prepare_form_demo(form_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    form = db.get(FormTemplate, form_id)
+    if not form or form.organization_id != user.organization_id or form.status != "active" or form.cadence == "disabled":
+        raise HTTPException(404, "Actief formulier niet gevonden")
+    active_clients = db.scalars(select(Client).where(Client.organization_id == user.organization_id, Client.active.is_(True)).order_by(Client.id)).all()
+    client = next((item for item in active_clients if decrypt_text(item.context_enc).startswith("Fictieve democliënt.")), None)
+    created = False
+    if not client:
+        client = Client(
+            organization_id=user.organization_id,
+            display_name_enc=encrypt_text("Noor de Vries"),
+            context_enc=encrypt_text("Fictieve democliënt. Noor ontvangt ondersteuning bij dagelijkse structuur en persoonlijke verzorging. Gebruik uitsluitend verzonnen gegevens."),
+        )
+        db.add(client); db.flush()
+        db.add(CareGoal(client_id=client.id, title_enc=encrypt_text("Dagelijkse structuur behouden"), description_enc=encrypt_text("Fictief demonstratiedoel")))
+        db.add(CareGoal(client_id=client.id, title_enc=encrypt_text("Zelfstandigheid bij persoonlijke verzorging"), description_enc=encrypt_text("Fictief demonstratiedoel")))
+        created = True
+    client_name = decrypt_text(client.display_name_enc)
+    example = f"{client_name} was vanmorgen rustig maar had extra uitleg nodig bij de persoonlijke verzorging. Met korte aanwijzingen heeft {client_name.split()[0]} twee stappen zelfstandig uitgevoerd. Daarna heeft {client_name.split()[0]} goed ontbeten en meegedaan aan de geplande activiteit. Er waren geen incidenten of bijzonderheden."
+    audit(db, user, "form.demo_prepared", "form", form.id, {"client_id": client.id, "client_created": created})
+    db.commit()
+    return {"form": form_payload(form), "client_id": client.id, "client_name": client_name, "client_created": created, "example_narrative": example}
 
 
 @app.get("/api/reminders")
