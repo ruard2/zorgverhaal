@@ -40,9 +40,10 @@ def test_platform_owner_invites_employer_downloads_letter_and_employer_seeds_dem
             document_xml = package.read("word/document.xml").decode("utf-8")
             footer_xml = package.read("word/footer1.xml").decode("utf-8")
         assert f"employer_join={invitation['token']}" in relationships
-        assert "Demo-Zorg" in document_xml
+        assert "ZorgVlot" in document_xml
         assert employer_email in document_xml
         assert "verandermij" in document_xml
+        assert "https://www.zorgvlot.nl" in document_xml
         assert "CommunityTools" in footer_xml
 
         info = browser.get(f"/api/employer-join/{invitation['token']}")
@@ -83,3 +84,26 @@ def test_employer_can_use_homepage_login_and_must_replace_temporary_password():
         browser.post("/api/logout")
         assert browser.post("/api/login", json={"email": employer_email, "password": "verandermij"}).status_code == 401
         assert browser.post("/api/login", json={"email": employer_email, "password": "nieuw-veilig-wachtwoord"}).status_code == 200
+
+
+def test_company_can_self_register_from_public_homepage():
+    suffix = uuid.uuid4().hex[:8]
+    email = f"registratie-{suffix}@example.nl"
+    payload = {
+        "organization_name": f"Zelfzorg {suffix}",
+        "contact_name": "Nieuwe Werkgever",
+        "email": email,
+        "password": "zelfgekozen-wachtwoord",
+    }
+    with TestClient(app) as browser:
+        registered = browser.post("/api/register-company", json=payload)
+        assert registered.status_code == 200
+        assert registered.json()["must_change_password"] is False
+        me = browser.get("/api/me")
+        assert me.status_code == 200
+        assert me.json()["email"] == email
+        assert me.json()["role"] == "org_admin"
+        assert browser.get("/api/dashboard").status_code == 200
+        browser.post("/api/logout")
+        assert browser.post("/api/login", json={"email": email, "password": payload["password"]}).status_code == 200
+        assert browser.post("/api/register-company", json=payload).status_code == 409

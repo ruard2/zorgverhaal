@@ -126,6 +126,13 @@ class OrganizationIn(BaseModel):
     admin_password: str = Field(min_length=12, max_length=200)
 
 
+class CompanyRegistrationIn(BaseModel):
+    organization_name: str = Field(min_length=2, max_length=200)
+    contact_name: str = Field(min_length=2, max_length=120)
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=200)
+
+
 class JoinIn(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     email: EmailStr

@@ -51,7 +51,7 @@ def body(doc, text, after=5):
     set_font(paragraph.add_run(text))
 
 
-def build_employer_invitation_document(organization_name: str, contact_name: str, email: str, invite_url: str) -> bytes:
+def build_employer_invitation_document(organization_name: str, contact_name: str, email: str, invite_url: str, homepage_url: str) -> bytes:
     document = Document()
     section = document.sections[0]
     section.page_width = Inches(8.5); section.page_height = Inches(11)
@@ -72,9 +72,9 @@ def build_employer_invitation_document(organization_name: str, contact_name: str
     source.insert(1, crop)
 
     kicker = document.add_paragraph(); kicker.paragraph_format.space_after = Pt(2)
-    set_font(kicker.add_run("PERSOONLIJKE UITNODIGING | DEMO-ZORG"), size=8.5, bold=True, color=PETROL)
+    set_font(kicker.add_run("PERSOONLIJKE UITNODIGING | ZORGVLOT"), size=8.5, bold=True, color=PETROL)
     title = document.add_paragraph(); title.paragraph_format.space_after = Pt(4)
-    set_font(title.add_run(f"Welkom bij Demo-Zorg, {contact_name}"), size=22, bold=True)
+    set_font(title.add_run(f"Welkom bij ZorgVlot, {contact_name}"), size=22, bold=True)
     subtitle = document.add_paragraph(); subtitle.paragraph_format.space_after = Pt(10)
     set_font(subtitle.add_run(f"Voor {organization_name}: ervaar hoe rapporteren eenvoudiger, sneller en beter controleerbaar wordt."), size=11.5, color=MUTED)
 
@@ -82,7 +82,7 @@ def build_employer_invitation_document(organization_name: str, contact_name: str
     body(document, f"Uw account is al aangemaakt. Gebruik als inlogmailadres: {email}. Het tijdelijke wachtwoord is ‘verandermij’.", after=3)
     link_paragraph = document.add_paragraph(); link_paragraph.paragraph_format.space_after = Pt(7)
     add_hyperlink(link_paragraph, "Klik hier om in te loggen op uw werkgeversaccount", invite_url)
-    body(document, "Na het inloggen vraagt Demo-Zorg u direct om een eigen wachtwoord van minimaal 12 tekens te kiezen. Daarna opent automatisch het werkgeversportaal. Later kunt u ook via de gewone homepage inloggen met hetzelfde e-mailadres en uw eigen wachtwoord. De persoonlijke link is zeven dagen geldig en kan één keer worden gebruikt.")
+    body(document, f"Na het inloggen vraagt ZorgVlot u direct om een eigen wachtwoord van minimaal 12 tekens te kiezen. Daarna opent automatisch het werkgeversportaal. Later logt u opnieuw in via {homepage_url}: kies ‘Inloggen’ en gebruik hetzelfde e-mailadres met uw eigen wachtwoord. De persoonlijke link is zeven dagen geldig en kan één keer worden gebruikt.")
 
     heading(document, "2. Vul de demonstratie")
     body(document, "Na het inloggen opent het werkgeversportaal. Ga naar Beheer, open Demo-inhoud en kies ‘Demo-inhoud toevoegen’. Er worden fictieve cliënten, zorgdoelen en formulieren klaargezet. Gebruik geen echte cliëntgegevens.")
@@ -106,8 +106,8 @@ def build_employer_invitation_document(organization_name: str, contact_name: str
     body(document, "Minder registratietijd en losse vragen, uniforme formulieren, sneller werkgeversinzicht en een controleerbaar cliëntdossier. AI maakt een concept; de zorgmedewerker controleert en beslist altijd zelf wat wordt opgeslagen.", after=0)
 
     footer = section.footer.paragraphs[0]; footer.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    set_font(footer.add_run("Demo-Zorg | ontwikkeld door CommunityTools"), size=8, color=MUTED)
-    document.core_properties.title = f"Uitnodiging Demo-Zorg - {organization_name}"
+    set_font(footer.add_run("ZorgVlot | ontwikkeld door CommunityTools"), size=8, color=MUTED)
+    document.core_properties.title = f"Uitnodiging ZorgVlot - {organization_name}"
     document.core_properties.author = "CommunityTools"
     output = BytesIO(); document.save(output)
     return output.getvalue()

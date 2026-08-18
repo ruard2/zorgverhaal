@@ -234,11 +234,19 @@ def test_platform_owner_can_invite_employer_and_download_personal_letter():
     assert "Nodig werkgever uit" in frontend
     assert "Download persoonlijke brief" in frontend
     assert "employer_join" in frontend
-    assert "Demo-Zorg" in frontend
-    assert "Werkgeversaccount aanmaken" in frontend
+    assert "ZorgVlot" in frontend
+    assert "Inloggen met tijdelijk wachtwoord" in frontend
     assert 'id="employerJoin" class="registrationcard" hidden' in frontend
     assert 'api("/api/me/form-mode"' in frontend
     assert "Altijd eerst vragen" in frontend
+
+
+def test_public_homepage_offers_login_and_company_registration():
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "function publicHomePage" in frontend
+    assert "Registreer bedrijf" in frontend
+    assert 'api("/api/register-company"' in frontend
+    assert "https://www.zorgvlot.nl" in frontend
 
 
 def test_manual_form_has_no_redundant_ai_notice_or_confirmation_checkbox():

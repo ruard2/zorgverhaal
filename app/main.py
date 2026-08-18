@@ -19,12 +19,13 @@ from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
 from .employer_invitation_document import build_employer_invitation_document
 from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, EmployerInvitation, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
-from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, PasswordChangeIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
+from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, CompanyRegistrationIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, PasswordChangeIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
 settings = get_settings()
 EMPLOYER_TEMPORARY_PASSWORD = "verandermij"
+PUBLIC_HOMEPAGE_URL = "https://www.zorgvlot.nl"
 DEFAULT_SHIFTS = [
     {"name": "Dagdienst", "starts_at": "07:00", "minimum_handover": "Bijzonderheden, afspraken en aandachtspunten voor de volgende dienst."},
     {"name": "Avonddienst", "starts_at": "15:00", "minimum_handover": "Bijzonderheden, afspraken en aandachtspunten voor de volgende dienst."},
@@ -155,6 +156,29 @@ def login(data: LoginIn, response: Response, db: Session = Depends(get_db)):
     return {"ok": True, "role": user.role, "must_change_password": bool(user.must_change_password)}
 
 
+@app.post("/api/register-company")
+def register_company(data: CompanyRegistrationIn, response: Response, db: Session = Depends(get_db)):
+    email = data.email.lower()
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(409, "Dit e-mailadres bestaat al")
+    organization = Organization(name=data.organization_name.strip())
+    db.add(organization); db.flush()
+    employer = User(
+        organization_id=organization.id,
+        email=email,
+        password_hash=hash_password(data.password),
+        role="org_admin",
+        display_name=data.contact_name.strip(),
+        must_change_password=False,
+    )
+    db.add(employer); db.flush()
+    db.add(OrganizationSettings(organization_id=organization.id, care_types_enc=encrypt_json([]), branding_enc=encrypt_json({"product": "ZorgVlot", "developer": "CommunityTools"})))
+    db.add(AuditLog(organization_id=organization.id, user_id=employer.id, action="company.self_registered", target_type="organization", target_id=organization.id))
+    db.commit()
+    response.set_cookie("zorg_session", issue_token(employer), httponly=True, secure=settings.cookie_secure, samesite="lax", max_age=43200)
+    return {"ok": True, "role": employer.role, "must_change_password": False}
+
+
 @app.post("/api/logout")
 def logout(response: Response):
     response.delete_cookie("zorg_session")
@@ -280,9 +304,9 @@ def employer_invitation_letter(invitation_id: str, token: str, request: Request,
     forwarded_host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc)).split(",", 1)[0].strip()
     base_url = f"{forwarded_proto}://{forwarded_host}".rstrip("/")
     invite_url = f"{base_url}/?employer_join={token}"
-    content = build_employer_invitation_document(invitation.organization_name, invitation.contact_name, invitation.intended_email, invite_url)
+    content = build_employer_invitation_document(invitation.organization_name, invitation.contact_name, invitation.intended_email, invite_url, PUBLIC_HOMEPAGE_URL)
     safe_name = re.sub(r"[^A-Za-z0-9_-]+", "-", invitation.organization_name).strip("-") or "werkgever"
-    return Response(content=content, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={"Content-Disposition": f'attachment; filename="Demo-Zorg-uitnodiging-{safe_name}.docx"'})
+    return Response(content=content, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={"Content-Disposition": f'attachment; filename="ZorgVlot-uitnodiging-{safe_name}.docx"'})
 
 
 @app.get("/api/employer-join/{token}")
