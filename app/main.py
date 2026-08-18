@@ -530,7 +530,12 @@ def activate_form_import(import_id: str, data: FormImportActivateIn, db: Session
     if not draft or draft.organization_id != user.organization_id:
         raise HTTPException(404, "Formulierconcept niet gevonden")
     if draft.status == "active":
-        raise HTTPException(409, "Dit formulier is al geactiveerd")
+        saved_proposal = decrypt_json(draft.proposal_enc)
+        form_type = saved_proposal.get("suggested_form_type") if isinstance(saved_proposal, dict) else None
+        active_form = db.scalar(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == form_type, FormTemplate.status == "active").order_by(FormTemplate.version.desc()))
+        if not active_form:
+            raise HTTPException(409, "Dit formulier is al verwerkt maar niet meer actief")
+        return {"ok": True, "already_active": True, "form": form_payload(active_form)}
     if not data.human_review_confirmed:
         raise HTTPException(422, "Vergelijking met het originele formulier is verplicht")
     errors = fidelity_errors(data.proposal, decrypt_text(draft.source_text_enc))
