@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.database import SessionLocal
 from app.main import app
 from app.models import Organization, User
-from app.security import hash_password, issue_token
+from app.security import hash_password, issue_token, verify_password
 
 
 def test_platform_owner_invites_employer_downloads_letter_and_employer_seeds_demo():
@@ -25,6 +25,12 @@ def test_platform_owner_invites_employer_downloads_letter_and_employer_seeds_dem
         created = browser.post("/api/platform/employer-invitations", json={"organization_name": f"Zorggroep {suffix}", "contact_name": "Eva de Vries", "email": employer_email})
         assert created.status_code == 200
         invitation = created.json()
+        assert invitation["email"] == employer_email
+        with SessionLocal() as db:
+            employer = db.query(User).filter(User.email == employer_email).one()
+            assert employer.role == "org_admin"
+            assert employer.must_change_password is True
+            assert verify_password("verandermij", employer.password_hash)
 
         letter = browser.get(f"/api/platform/employer-invitations/{invitation['id']}/letter", params={"token": invitation["token"]})
         assert letter.status_code == 200
@@ -35,6 +41,8 @@ def test_platform_owner_invites_employer_downloads_letter_and_employer_seeds_dem
             footer_xml = package.read("word/footer1.xml").decode("utf-8")
         assert f"employer_join={invitation['token']}" in relationships
         assert "Demo-Zorg" in document_xml
+        assert employer_email in document_xml
+        assert "verandermij" in document_xml
         assert "CommunityTools" in footer_xml
 
         info = browser.get(f"/api/employer-join/{invitation['token']}")
@@ -42,10 +50,36 @@ def test_platform_owner_invites_employer_downloads_letter_and_employer_seeds_dem
         assert info.json()["organization_name"].startswith("Zorggroep")
 
         browser.cookies.clear()
-        joined = browser.post(f"/api/employer-join/{invitation['token']}", json={"name": "Eva de Vries", "email": employer_email, "password": "veilig-werkgever-2026"})
+        joined = browser.post(f"/api/employer-join/{invitation['token']}", json={"email": employer_email, "password": "verandermij"})
         assert joined.status_code == 200
-        assert browser.get("/api/me").json()["role"] == "org_admin"
+        assert joined.json()["must_change_password"] is True
+        assert browser.get("/api/me").json()["must_change_password"] is True
+        assert browser.get("/api/dashboard").status_code == 428
+        changed = browser.post("/api/me/password", json={"password": "veilig-werkgever-2026"})
+        assert changed.status_code == 200
+        assert browser.get("/api/me").json()["must_change_password"] is False
         seeded = browser.post("/api/organization/seed-demo")
         assert seeded.status_code == 200
         assert browser.get("/api/clients").json()
         assert browser.get(f"/api/employer-join/{invitation['token']}").status_code == 410
+
+
+def test_employer_can_use_homepage_login_and_must_replace_temporary_password():
+    suffix = uuid.uuid4().hex[:8]
+    employer_email = f"homepage-{suffix}@example.nl"
+    with SessionLocal() as db:
+        organization = Organization(name=f"Homepage Zorg {suffix}")
+        db.add(organization); db.flush()
+        db.add(User(organization_id=organization.id, email=employer_email, password_hash=hash_password("verandermij"), role="org_admin", display_name="Homepage Werkgever", must_change_password=True))
+        db.commit()
+
+    with TestClient(app) as browser:
+        logged_in = browser.post("/api/login", json={"email": employer_email, "password": "verandermij"})
+        assert logged_in.status_code == 200
+        assert logged_in.json()["must_change_password"] is True
+        assert browser.get("/api/dashboard").status_code == 428
+        assert browser.post("/api/me/password", json={"password": "verandermij"}).status_code == 422
+        assert browser.post("/api/me/password", json={"password": "nieuw-veilig-wachtwoord"}).status_code == 200
+        browser.post("/api/logout")
+        assert browser.post("/api/login", json={"email": employer_email, "password": "verandermij"}).status_code == 401
+        assert browser.post("/api/login", json={"email": employer_email, "password": "nieuw-veilig-wachtwoord"}).status_code == 200

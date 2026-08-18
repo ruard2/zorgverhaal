@@ -19,11 +19,12 @@ from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
 from .employer_invitation_document import build_employer_invitation_document
 from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, EmployerInvitation, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
-from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
+from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, PasswordChangeIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
 settings = get_settings()
+EMPLOYER_TEMPORARY_PASSWORD = "verandermij"
 DEFAULT_SHIFTS = [
     {"name": "Dagdienst", "starts_at": "07:00", "minimum_handover": "Bijzonderheden, afspraken en aandachtspunten voor de volgende dienst."},
     {"name": "Avonddienst", "starts_at": "15:00", "minimum_handover": "Bijzonderheden, afspraken en aandachtspunten voor de volgende dienst."},
@@ -84,6 +85,7 @@ def migrate() -> None:
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS form_mode VARCHAR(20) DEFAULT 'ask'"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(120) DEFAULT ''"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_number VARCHAR(30) DEFAULT ''"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE"))
             conn.execute(text("ALTER TABLE invitations ADD COLUMN IF NOT EXISTS employee_name VARCHAR(120) DEFAULT ''"))
             conn.execute(text("ALTER TABLE invitations ADD COLUMN IF NOT EXISTS employee_number VARCHAR(30) DEFAULT ''"))
             conn.execute(text("ALTER TABLE invitations ADD COLUMN IF NOT EXISTS intended_email VARCHAR(320) DEFAULT ''"))
@@ -97,7 +99,7 @@ def migrate() -> None:
             user_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
             if "form_mode" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN form_mode VARCHAR(20) DEFAULT 'ask'"))
-            for column, definition in (("display_name", "VARCHAR(120) DEFAULT ''"), ("employee_number", "VARCHAR(30) DEFAULT ''")):
+            for column, definition in (("display_name", "VARCHAR(120) DEFAULT ''"), ("employee_number", "VARCHAR(30) DEFAULT ''"), ("must_change_password", "BOOLEAN DEFAULT 0")):
                 if column not in user_columns:
                     conn.execute(text(f"ALTER TABLE users ADD COLUMN {column} {definition}"))
             invitation_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(invitations)"))}
@@ -143,10 +145,14 @@ def health(): return {"ok": True}
 @app.post("/api/login")
 def login(data: LoginIn, response: Response, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.email == data.email.lower()))
-    if not user or not verify_password(data.password, user.password_hash):
+    if not user or not user.active or not verify_password(data.password, user.password_hash):
         raise HTTPException(401, "E-mailadres of wachtwoord klopt niet")
+    pending_invitation = db.scalar(select(EmployerInvitation).where(EmployerInvitation.intended_email == user.email, EmployerInvitation.used_at.is_(None), EmployerInvitation.revoked.is_(False)).order_by(EmployerInvitation.created_at.desc()))
+    if pending_invitation:
+        pending_invitation.used_at = datetime.now(timezone.utc)
+        db.commit()
     response.set_cookie("zorg_session", issue_token(user), httponly=True, secure=settings.cookie_secure, samesite="lax", max_age=43200)
-    return {"ok": True, "role": user.role}
+    return {"ok": True, "role": user.role, "must_change_password": bool(user.must_change_password)}
 
 
 @app.post("/api/logout")
@@ -156,7 +162,18 @@ def logout(response: Response):
 
 
 @app.get("/api/me")
-def me(user: User = Depends(current_user)): return {"email": user.email, "name": user.display_name or user.email.split("@")[0], "employee_number": user.employee_number or "", "role": user.role, "form_mode": user.form_mode or "ask"}
+def me(user: User = Depends(current_user)): return {"email": user.email, "name": user.display_name or user.email.split("@")[0], "employee_number": user.employee_number or "", "role": user.role, "form_mode": user.form_mode or "ask", "must_change_password": bool(user.must_change_password)}
+
+
+@app.post("/api/me/password")
+def change_my_password(data: PasswordChangeIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if data.password == EMPLOYER_TEMPORARY_PASSWORD:
+        raise HTTPException(400, "Kies een ander wachtwoord dan het tijdelijke wachtwoord")
+    user.password_hash = hash_password(data.password)
+    user.must_change_password = False
+    audit(db, user, "user.password_changed", "user", user.id, {"first_login": True})
+    db.commit()
+    return {"ok": True}
 
 
 @app.post("/api/me/form-mode")
@@ -223,21 +240,34 @@ def create_organization(data: OrganizationIn, db: Session = Depends(get_db), use
 @app.post("/api/platform/employer-invitations")
 def create_employer_invitation(data: EmployerInvitationIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_role(user, "platform_admin")
-    if data.email and db.scalar(select(User).where(User.email == str(data.email).lower())):
+    email = str(data.email).lower()
+    if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(409, "Dit e-mailadres bestaat al")
+    organization = Organization(name=data.organization_name.strip())
+    db.add(organization); db.flush()
+    employer = User(
+        organization_id=organization.id,
+        email=email,
+        password_hash=hash_password(EMPLOYER_TEMPORARY_PASSWORD),
+        role="org_admin",
+        display_name=data.contact_name.strip(),
+        must_change_password=True,
+    )
+    db.add(employer); db.flush()
+    db.add(OrganizationSettings(organization_id=organization.id, care_types_enc=encrypt_json([]), branding_enc=encrypt_json({"product": "Demo-Zorg", "developer": "CommunityTools"})))
     token = secrets.token_urlsafe(32)
     invitation = EmployerInvitation(
         created_by=user.id,
         token_hash=hashlib.sha256(token.encode()).hexdigest(),
         organization_name=data.organization_name.strip(),
         contact_name=data.contact_name.strip(),
-        intended_email=str(data.email or "").lower(),
+        intended_email=email,
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
     )
     db.add(invitation); db.flush()
-    audit(db, user, "employer_invitation.created", "employer_invitation", invitation.id, {"organization_name": invitation.organization_name})
+    audit(db, user, "employer_invitation.created", "employer_invitation", invitation.id, {"organization_name": invitation.organization_name, "employer_user_id": employer.id})
     db.commit()
-    return {"id": invitation.id, "token": token, "organization_name": invitation.organization_name, "contact_name": invitation.contact_name, "expires_at": invitation.expires_at.isoformat()}
+    return {"id": invitation.id, "token": token, "organization_name": invitation.organization_name, "contact_name": invitation.contact_name, "email": email, "expires_at": invitation.expires_at.isoformat()}
 
 
 @app.get("/api/platform/employer-invitations/{invitation_id}/letter")
@@ -250,7 +280,7 @@ def employer_invitation_letter(invitation_id: str, token: str, request: Request,
     forwarded_host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc)).split(",", 1)[0].strip()
     base_url = f"{forwarded_proto}://{forwarded_host}".rstrip("/")
     invite_url = f"{base_url}/?employer_join={token}"
-    content = build_employer_invitation_document(invitation.organization_name, invitation.contact_name, invite_url)
+    content = build_employer_invitation_document(invitation.organization_name, invitation.contact_name, invitation.intended_email, invite_url)
     safe_name = re.sub(r"[^A-Za-z0-9_-]+", "-", invitation.organization_name).strip("-") or "werkgever"
     return Response(content=content, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={"Content-Disposition": f'attachment; filename="Demo-Zorg-uitnodiging-{safe_name}.docx"'})
 
@@ -264,25 +294,21 @@ def employer_invitation_info(token: str, db: Session = Depends(get_db)):
 
 
 @app.post("/api/employer-join/{token}")
-def join_as_employer(token: str, data: JoinIn, response: Response, db: Session = Depends(get_db)):
+def join_as_employer(token: str, data: LoginIn, response: Response, db: Session = Depends(get_db)):
     invitation = db.scalar(select(EmployerInvitation).where(EmployerInvitation.token_hash == hashlib.sha256(token.encode()).hexdigest()))
     if not invitation or invitation.revoked or invitation.used_at or invitation_expired(invitation):
         raise HTTPException(410, "Uitnodiging is verlopen, gebruikt of ingetrokken")
     email = data.email.lower()
-    if invitation.intended_email and invitation.intended_email != email:
+    if invitation.intended_email != email:
         raise HTTPException(409, "Gebruik het e-mailadres waarvoor deze uitnodiging is gemaakt")
-    if db.scalar(select(User).where(User.email == email)):
-        raise HTTPException(409, "Dit e-mailadres bestaat al")
-    organization = Organization(name=invitation.organization_name)
-    db.add(organization); db.flush()
-    employer = User(organization_id=organization.id, email=email, password_hash=hash_password(data.password), role="org_admin", display_name=data.name.strip())
-    db.add(employer); db.flush()
-    db.add(OrganizationSettings(organization_id=organization.id, care_types_enc=encrypt_json([]), branding_enc=encrypt_json({"product": "Demo-Zorg", "developer": "CommunityTools"})))
+    employer = db.scalar(select(User).where(User.email == email))
+    if not employer or not employer.active or employer.role != "org_admin" or not verify_password(data.password, employer.password_hash):
+        raise HTTPException(401, "E-mailadres of wachtwoord klopt niet")
     invitation.used_at = datetime.now(timezone.utc)
-    db.add(AuditLog(organization_id=organization.id, user_id=employer.id, action="employer_invitation.accepted", target_type="organization", target_id=organization.id))
+    db.add(AuditLog(organization_id=employer.organization_id, user_id=employer.id, action="employer_invitation.accepted", target_type="organization", target_id=employer.organization_id))
     db.commit()
     response.set_cookie("zorg_session", issue_token(employer), httponly=True, secure=settings.cookie_secure, samesite="lax", max_age=43200)
-    return {"ok": True}
+    return {"ok": True, "must_change_password": bool(employer.must_change_password)}
 
 
 @app.get("/api/platform/documents")

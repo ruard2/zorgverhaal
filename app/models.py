@@ -30,6 +30,7 @@ class User(Base):
     form_mode: Mapped[str] = mapped_column(String(20), default="ask")
     display_name: Mapped[str] = mapped_column(String(120), default="")
     employee_number: Mapped[str] = mapped_column(String(30), default="", index=True)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Client(Base):

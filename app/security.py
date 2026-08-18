@@ -3,7 +3,7 @@ import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet
-from fastapi import Cookie, Depends, HTTPException
+from fastapi import Cookie, Depends, HTTPException, Request
 import jwt
 from pwdlib import PasswordHash
 from sqlalchemy.orm import Session
@@ -60,7 +60,7 @@ def get_db():
         db.close()
 
 
-def current_user(zorg_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> User:
+def current_user(request: Request, zorg_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> User:
     if not zorg_session:
         raise HTTPException(401, "Log eerst in")
     try:
@@ -70,4 +70,7 @@ def current_user(zorg_session: str | None = Cookie(default=None), db: Session = 
     user = db.get(User, payload["sub"])
     if not user or not user.active:
         raise HTTPException(401, "Gebruiker niet actief")
+    password_setup_paths = {"/api/me", "/api/me/password", "/api/logout"}
+    if user.must_change_password and request.url.path not in password_setup_paths:
+        raise HTTPException(428, "Kies eerst een eigen wachtwoord")
     return user

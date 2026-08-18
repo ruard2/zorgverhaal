@@ -77,6 +77,10 @@ class LoginIn(BaseModel):
     password: str
 
 
+class PasswordChangeIn(BaseModel):
+    password: str = Field(min_length=12, max_length=200)
+
+
 class FormModeIn(BaseModel):
     form_mode: str = Field(pattern="^(ask|ai|manual)$")
 
@@ -136,7 +140,7 @@ class InvitationIn(BaseModel):
 class EmployerInvitationIn(BaseModel):
     organization_name: str = Field(min_length=2, max_length=200)
     contact_name: str = Field(min_length=2, max_length=120)
-    email: EmailStr | None = None
+    email: EmailStr
 
 
 class ReminderIn(BaseModel):

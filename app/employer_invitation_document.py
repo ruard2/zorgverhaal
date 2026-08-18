@@ -51,7 +51,7 @@ def body(doc, text, after=5):
     set_font(paragraph.add_run(text))
 
 
-def build_employer_invitation_document(organization_name: str, contact_name: str, invite_url: str) -> bytes:
+def build_employer_invitation_document(organization_name: str, contact_name: str, email: str, invite_url: str) -> bytes:
     document = Document()
     section = document.sections[0]
     section.page_width = Inches(8.5); section.page_height = Inches(11)
@@ -78,10 +78,11 @@ def build_employer_invitation_document(organization_name: str, contact_name: str
     subtitle = document.add_paragraph(); subtitle.paragraph_format.space_after = Pt(10)
     set_font(subtitle.add_run(f"Voor {organization_name}: ervaar hoe rapporteren eenvoudiger, sneller en beter controleerbaar wordt."), size=11.5, color=MUTED)
 
-    heading(document, "1. Maak uw werkgeversaccount aan")
-    body(document, "Open de persoonlijke link hieronder. Vul uw naam, werk-e-mailadres en een eigen wachtwoord in. De link is tijdelijk en kan één keer worden gebruikt.", after=3)
+    heading(document, "1. Log in op uw werkgeversaccount")
+    body(document, f"Uw account is al aangemaakt. Gebruik als inlogmailadres: {email}. Het tijdelijke wachtwoord is ‘verandermij’.", after=3)
     link_paragraph = document.add_paragraph(); link_paragraph.paragraph_format.space_after = Pt(7)
-    add_hyperlink(link_paragraph, "Klik hier om uw werkgeversaccount te activeren", invite_url)
+    add_hyperlink(link_paragraph, "Klik hier om in te loggen op uw werkgeversaccount", invite_url)
+    body(document, "Na het inloggen vraagt Demo-Zorg u direct om een eigen wachtwoord van minimaal 12 tekens te kiezen. Daarna opent automatisch het werkgeversportaal. Later kunt u ook via de gewone homepage inloggen met hetzelfde e-mailadres en uw eigen wachtwoord. De persoonlijke link is zeven dagen geldig en kan één keer worden gebruikt.")
 
     heading(document, "2. Vul de demonstratie")
     body(document, "Na het inloggen opent het werkgeversportaal. Ga naar Beheer, open Demo-inhoud en kies ‘Demo-inhoud toevoegen’. Er worden fictieve cliënten, zorgdoelen en formulieren klaargezet. Gebruik geen echte cliëntgegevens.")
