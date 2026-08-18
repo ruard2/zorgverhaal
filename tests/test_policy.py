@@ -249,6 +249,16 @@ def test_public_homepage_offers_login_and_company_registration():
     assert "https://www.zorgvlot.nl" in frontend
 
 
+def test_employer_can_upload_and_analyze_a_form_from_management():
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "function formUploadPage" in frontend
+    assert "Formulier uploaden met AI" in frontend
+    assert "Uploaden en met AI analyseren" in frontend
+    assert 'api("/api/organization/documents"' in frontend
+    assert "/analyze-form" in frontend
+    assert "formImportReviewPage(item)" in frontend
+
+
 def test_manual_form_has_no_redundant_ai_notice_or_confirmation_checkbox():
     from pathlib import Path
 
