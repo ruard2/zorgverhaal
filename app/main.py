@@ -19,7 +19,7 @@ from .database import Base, SessionLocal, engine
 from .form_import_service import analyze_form, extract_document_text, fidelity_errors, proposal_to_schema
 from .employer_invitation_document import build_employer_invitation_document
 from .models import AuditLog, CareGoal, Client, ClientAssignment, DocumentUpload, EmployerInvitation, FormImportDraft, FormSubmission, FormTemplate, Invitation, Organization, OrganizationSettings, Reminder, Report, ReportAddendum, ReportReview, ReportingSession, User
-from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, CompanyRegistrationIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, PasswordChangeIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
+from .schemas import AIPlan, AddendumIn, AnswerIn, AssignmentIn, ClientIn, CompanyRegistrationIn, DocumentStatusIn, EmployerInvitationIn, FinalizeIn, FormCadenceIn, FormImportActivateIn, FormModeIn, FormSubmitIn, FormUpdateIn, InvitationIn, JoinIn, LoginIn, OrganizationIn, PasswordChangeIn, ReminderIn, ReviewRequestIn, ShiftSettingsIn, StartSessionIn
 from .security import current_user, decrypt_json, decrypt_text, encrypt_json, encrypt_text, get_db, hash_password, issue_token, verify_password
 
 
@@ -557,7 +557,7 @@ def activate_form_import(import_id: str, data: FormImportActivateIn, db: Session
 def prepare_form_demo(form_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_role(user, "org_admin")
     form = db.get(FormTemplate, form_id)
-    if not form or form.organization_id != user.organization_id or form.status != "active" or form.cadence == "disabled":
+    if not form or form.organization_id != user.organization_id or form.status != "active":
         raise HTTPException(404, "Actief formulier niet gevonden")
     active_clients = db.scalars(select(Client).where(Client.organization_id == user.organization_id, Client.active.is_(True)).order_by(Client.id)).all()
     client = next((item for item in active_clients if decrypt_text(item.context_enc).startswith("Fictieve democliënt.")), None)
@@ -776,6 +776,49 @@ def set_form_cadence(form_id: str, data: FormCadenceIn, db: Session = Depends(ge
     audit(db, user, "form.cadence_changed", "form", form.id, {"cadence": data.cadence})
     db.commit()
     return {"ok": True, "cadence": form.cadence}
+
+
+@app.post("/api/organization/forms/{form_id}/update")
+def update_organization_form(form_id: str, data: FormUpdateIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    form = db.get(FormTemplate, form_id)
+    if not form or form.organization_id != user.organization_id or form.status != "active":
+        raise HTTPException(404, "Actief formulier niet gevonden")
+    field_ids = [field.id for section in data.sections for field in section.fields]
+    if len(field_ids) != len(set(field_ids)):
+        raise HTTPException(422, "Iedere veldsleutel moet uniek zijn")
+    old_schema = decrypt_json(form.schema_enc)
+    new_schema = dict(old_schema) if isinstance(old_schema, dict) else {}
+    new_schema["purpose"] = data.purpose
+    new_schema["sections"] = [section.model_dump(mode="json") for section in data.sections]
+    prior_versions = db.scalars(select(FormTemplate).where(FormTemplate.organization_id == user.organization_id, FormTemplate.form_type == form.form_type)).all()
+    form.status = "archived"
+    updated = FormTemplate(
+        organization_id=user.organization_id,
+        title=data.title,
+        form_type=form.form_type,
+        version=max((item.version for item in prior_versions), default=0) + 1,
+        schema_enc=encrypt_json(new_schema),
+        cadence=data.cadence,
+        status="active",
+        created_by=user.id,
+    )
+    db.add(updated); db.flush()
+    audit(db, user, "form.updated", "form", updated.id, {"previous_form_id": form.id, "form_type": form.form_type, "version": updated.version})
+    db.commit()
+    return {"ok": True, "form": form_payload(updated)}
+
+
+@app.post("/api/organization/forms/{form_id}/archive")
+def archive_organization_form(form_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_role(user, "org_admin")
+    form = db.get(FormTemplate, form_id)
+    if not form or form.organization_id != user.organization_id or form.status != "active":
+        raise HTTPException(404, "Actief formulier niet gevonden")
+    form.status = "archived"
+    audit(db, user, "form.archived", "form", form.id, {"form_type": form.form_type, "version": form.version})
+    db.commit()
+    return {"ok": True}
 
 
 @app.get("/api/organization/shifts")

@@ -173,6 +173,26 @@ class FormCadenceIn(BaseModel):
     cadence: str = Field(pattern="^(daily|incident|on_demand|disabled)$")
 
 
+class EditableFormField(BaseModel):
+    id: str = Field(min_length=1, max_length=100, pattern=r"^[a-z0-9_]+$")
+    label: str = Field(min_length=1, max_length=300)
+    type: str = Field(pattern="^(text|textarea|select|multiselect|boolean|date|datetime|number)$")
+    required: bool = False
+    options: list[str] = Field(default_factory=list, max_length=100)
+
+
+class EditableFormSection(BaseModel):
+    title: str = Field(default="", max_length=300)
+    fields: list[EditableFormField] = Field(min_length=1, max_length=100)
+
+
+class FormUpdateIn(BaseModel):
+    title: str = Field(min_length=1, max_length=180)
+    purpose: str = Field(default="", max_length=1000)
+    cadence: str = Field(pattern="^(daily|incident|on_demand|disabled)$")
+    sections: list[EditableFormSection] = Field(min_length=1, max_length=50)
+
+
 class ShiftDefinition(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     starts_at: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
