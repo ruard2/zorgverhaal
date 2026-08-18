@@ -139,6 +139,15 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def index(): return FileResponse("static/index.html")
 
 
+@app.get("/overzicht")
+@app.get("/clienten")
+@app.get("/controle")
+@app.get("/beheer")
+@app.get("/beheer/formulier-uploaden")
+@app.get("/audit")
+def employer_portal_page(): return FileResponse("static/index.html")
+
+
 @app.get("/health")
 def health(): return {"ok": True}
 

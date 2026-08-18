@@ -259,6 +259,17 @@ def test_employer_can_upload_and_analyze_a_form_from_management():
     assert "formImportReviewPage(item)" in frontend
 
 
+def test_employer_tabs_use_browser_history():
+    frontend = Path("static/app.js").read_text(encoding="utf-8")
+    assert "function navigateEmployerPage" in frontend
+    assert "history.pushState" in frontend
+    assert 'window.addEventListener("popstate"' in frontend
+    assert 'navigateEmployerPage("form-upload")' in frontend
+    assert 'management:"/beheer"' in frontend
+    assert 'reviews:"/controle"' in frontend
+    assert '"form-upload":"/beheer/formulier-uploaden"' in frontend
+
+
 def test_manual_form_has_no_redundant_ai_notice_or_confirmation_checkbox():
     from pathlib import Path
 
